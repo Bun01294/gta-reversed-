@@ -3,8 +3,8 @@ name: Build
 env:
   # Compile in parallel where possible.
   CL: /MP
-  # Fix CMake 4.0+ compatibility with older subprojects
   CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+
   # Path to the CMake build directory.
   build: "${{ github.workspace }}/build"
 
