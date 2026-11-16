@@ -27,7 +27,7 @@ jobs:
           sudo apt-get install -y doxygen
 
       - name: Configure CMake
-        run: cmake -S cmake/doxygen -B cmake/doxygen/build
+        run: cmake -S cmake/doxygen -B cmake/doxygen/build -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
       - name: Build Doxygen documentation
         run: cmake --build cmake/doxygen/build --target docs
