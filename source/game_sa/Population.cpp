@@ -63,7 +63,7 @@ void CPopulation::InjectHooks() {
     RH_ScopedGlobalInstall(PickRiotRoadBlockCar, 0x6144B0);
     RH_ScopedGlobalInstall(ConvertToRealObject, 0x614580);
     RH_ScopedGlobalInstall(ConvertToDummyObject, 0x614670);
-    RH_ScopedGlobalInstall(AddToPopulation, 0x614720, { .Reversed = false });
+    RH_ScopedGlobalInstall(AddToPopulation, 0x614720);
     RH_ScopedGlobalInstall(GeneratePedsAtAttractors, 0x615970);
     RH_ScopedGlobalInstall(GeneratePedsAtStartOfGame, 0x615C90);
     RH_ScopedGlobalInstall(ManageObject, 0x615DC0, { .Reversed = false });
@@ -1588,7 +1588,14 @@ void CPopulation::ConvertToDummyObject(CObject* object) {
 bool CPopulation::AddToPopulation(float arg0, float arg1, float arg2, float arg3) {
     ZoneScoped;
 
-    return ((bool(__cdecl*)(float, float, float, float))0x614720)(arg0, arg1, arg2, arg3);
+    const uint32 deadPeds = CountDeadPopulationPeds();
+    const uint32 savedTotalPeds = ms_nTotalPeds;
+    ms_nTotalPeds = (ms_nTotalPeds > deadPeds) ? (ms_nTotalPeds - deadPeds) : 0;
+
+    const bool result = ((bool(__cdecl*)(float, float, float, float))0x614720)(arg0, arg1, arg2, arg3);
+
+    ms_nTotalPeds = savedTotalPeds;
+    return result;
 }
 
 // 0x615970
@@ -1790,8 +1797,12 @@ void CPopulation::ManagePopulation() {
     
     {
         ZoneScopedN("Manage Peds");
+        const uint32 deadPeds = CountDeadPopulationPeds();
+        const int32 activePeds = (int32)ms_nTotalPeds - (int32)deadPeds;
+        UNUSED(activePeds); // Used when checking against MaxNumberOfPedsInUse
+
         auto* pool = GetPedPool();
-        for (auto& ped : GetPedPool()->GetAllValid()) {
+        for (auto& ped : pool->GetAllValid()) {
             ManagePed(&ped, centre);
         }
     }
