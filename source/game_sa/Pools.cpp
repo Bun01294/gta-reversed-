@@ -70,21 +70,21 @@ void CPools::Initialise() {
     ZoneScoped;
 
     ms_pPtrNodeSingleLinkPool = new CPtrNodeSingleLinkPool(70000, "PtrNode Single");
-    ms_pPtrNodeDoubleLinkPool = new CPtrNodeDoubleLinkPool(3200, "PtrNode Double");
-    ms_pEntryInfoNodePool     = new CEntryInfoNodePool(500, "EntryInfoNode");
-    ms_pPedPool               = new CPedPool(140, "Peds");
-    ms_pVehiclePool           = new CVehiclePool(110, "Vehicles");
+    ms_pPtrNodeDoubleLinkPool = new CPtrNodeDoubleLinkPool(6400, "PtrNode Double");
+    ms_pEntryInfoNodePool     = new CEntryInfoNodePool(2000, "EntryInfoNode");
+    ms_pPedPool               = new CPedPool(500, "Peds");
+    ms_pVehiclePool           = new CVehiclePool(300, "Vehicles");
     ms_pBuildingPool          = new CBuildingPool(13000, "Buildings");
     ms_pObjectPool            = new CObjectPool(350, "Objects");
     ms_pDummyPool             = new CDummyPool(2500, "Dummys");
     ms_pColModelPool          = new CColModelPool(10150, "ColModel");
-    ms_pTaskPool              = new CTaskPool(500, "Task");
-    ms_pEventPool             = new CEventPool(200, "Event");
+    ms_pTaskPool              = new CTaskPool(2000, "Task");
+    ms_pEventPool             = new CEventPool(500, "Event");
     ms_pPointRoutePool        = new CPointRoutePool(64, "PointRoute");
     ms_pPatrolRoutePool       = new CPatrolRoutePool(32, "PatrolRoute");
-    ms_pNodeRoutePool         = new CNodeRoutePool(64, "NodeRoute");;
+    ms_pNodeRoutePool         = new CNodeRoutePool(64, "NodeRoute");
     ms_pTaskAllocatorPool     = new CTaskAllocatorPool(16, "TaskAllocator");
-    ms_pPedIntelligencePool   = new CPedIntelligencePool(140, "PedIntelligence");
+    ms_pPedIntelligencePool   = new CPedIntelligencePool(500, "PedIntelligence");
     ms_pPedAttractorPool      = new CPedAttractorPool(64, "PedAttractors");
 }
 
