@@ -677,6 +677,16 @@ float CPopulation::FindPedMultiplierMotorway() {
     return 1.f;
 }
 
+static uint32 CountDeadPopulationPeds() {
+    uint32 deadCount = 0;
+    for (auto& ped : GetPedPool()->GetAllValid()) {
+        if (!ped.IsPlayer() && !ped.IsAlive() && ped.IsCreatedBy(PED_GAME) && ped.bHasBeenAddedToPopulation) {
+            ++deadCount;
+        }
+    }
+    return deadCount;
+}
+
 // 0x611FC0
 void CPopulation::ManagePed(CPed* ped, const CVector& playerPosn) {
     if (ped->IsPlayer()) {
@@ -1956,15 +1966,3 @@ void CPopulation::UpdatePedCounts() {
     ms_nTotalPeds = ms_nTotalCivPeds + ms_nTotalGangPeds + ms_nNumCop + ms_nNumEmergency;
 }
 
-
-namespace {
-uint32 CountDeadPopulationPeds() {
-    uint32 deadCount = 0;
-    for (auto& ped : GetPedPool()->GetAllValid()) {
-        if (!ped.IsPlayer() && !ped.IsAlive() && ped.m_nCreatedBy == PED_GAME && ped.bHasBeenAddedToPopulation) {
-            ++deadCount;
-        }
-    }
-    return deadCount;
-}
-} // namespace
