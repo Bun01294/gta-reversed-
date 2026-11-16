@@ -695,17 +695,25 @@ void CPopulation::ManagePed(CPed* ped, const CVector& playerPosn) {
         return;
     }
 
-    // If pead is dead, possibly fade them out
-    if (ped->IsStateDead()) {
+    if (!ped->IsAlive()) {
         const auto delta = CTimer::GetTimeInMS() - ped->m_nDeathTimeMS;
-        if (   delta > 30'000
-            || CDarkel::FrenzyOnGoing() && delta > 15'000
-            || CGangWars::GangWarFightingGoingOn() && delta > 8'000
-        ) {
+        if (delta > 3'600'000) {
             ped->bFadeOut = true;
         }
+
+        if (ped->bFadeOut && CVisibilityPlugins::GetClumpAlpha(ped->GetRpClump()) == 0) {
+            RemovePed(ped);
+            return;
+        }
+
+        const float distToPlayer = (ped->GetPosition() - playerPosn).Magnitude2D();
+        if (distToPlayer > 800.0f) {
+            RemovePed(ped);
+        }
+        return;
     }
 
+    // Living pedestrian branch (ped->IsAlive()) - 100% vanilla
     // If we've faded the ped completely out, remove it
     if (ped->bFadeOut && CVisibilityPlugins::GetClumpAlpha(ped->GetRpClump()) == 0) {
         RemovePed(ped);
@@ -1936,3 +1944,16 @@ void CPopulation::UpdatePedCounts() {
     ms_nTotalCivPeds = ms_nNumCivMale + ms_nNumCivFemale;
     ms_nTotalPeds = ms_nTotalCivPeds + ms_nTotalGangPeds + ms_nNumCop + ms_nNumEmergency;
 }
+
+
+namespace {
+uint32 CountDeadPopulationPeds() {
+    uint32 deadCount = 0;
+    for (auto& ped : GetPedPool()->GetAllValid()) {
+        if (!ped.IsPlayer() && !ped.IsAlive() && ped.m_nCreatedBy == PED_GAME && ped.bHasBeenAddedToPopulation) {
+            ++deadCount;
+        }
+    }
+    return deadCount;
+}
+} // namespace
