@@ -447,18 +447,30 @@ void operator delete(void* memory) {
 
 #ifndef NOTSA_STANDALONE
 void* operator new(size_t size) {
+    auto crtHeap = *reinterpret_cast<HANDLE*>(0x00C9C2F4);
+    if (!crtHeap) {
+        return HeapAlloc(GetProcessHeap(), 0, size ? size : 1);
+    }
     return plugin::CallAndReturn<void*, 0x82119A, size_t>(size);
 }
 
 void* operator new[](size_t size) {
-    return plugin::CallAndReturn<void*, 0x821195, size_t>(size);
+    return ::operator new(size);
 }
 
 void operator delete(void* p) {
+    if (!p) {
+        return;
+    }
+    auto crtHeap = *reinterpret_cast<HANDLE*>(0x00C9C2F4);
+    if (!crtHeap || !HeapValidate(crtHeap, 0, p)) {
+        HeapFree(GetProcessHeap(), 0, p);
+        return;
+    }
     plugin::Call<0x8214BD, void*>(p);
 }
 
 void operator delete[](void* p) {
-    plugin::Call<0x8213AE, void*>(p);
+    ::operator delete(p);
 }
 #endif
