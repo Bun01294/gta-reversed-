@@ -446,10 +446,25 @@ void operator delete(void* memory) {
 #endif
 
 #ifndef NOTSA_STANDALONE
+namespace {
+alignas(16) uint8 s_EarlyBootHeap[2 * 1024 * 1024]; // 2 MB for pre-CRT allocations
+size_t s_EarlyBootOffset = 0;
+
+inline bool IsEarlyBootPtr(void* p) noexcept {
+    const auto addr = reinterpret_cast<uintptr_t>(p);
+    const auto base = reinterpret_cast<uintptr_t>(s_EarlyBootHeap);
+    return addr >= base && addr < (base + sizeof(s_EarlyBootHeap));
+}
+} // namespace
+
 void* operator new(size_t size) {
-    auto crtHeap = *reinterpret_cast<HANDLE*>(0x00C9C2F4);
-    if (!crtHeap) {
-        return HeapAlloc(GetProcessHeap(), 0, size ? size : 1);
+    if (!*reinterpret_cast<HANDLE*>(0x00C9C2F4)) {
+        const size_t alignedSize = ((size ? size : 1) + 15) & ~size_t(15);
+        if (s_EarlyBootOffset + alignedSize <= sizeof(s_EarlyBootHeap)) {
+            void* ptr = &s_EarlyBootHeap[s_EarlyBootOffset];
+            s_EarlyBootOffset += alignedSize;
+            return ptr;
+        }
     }
     return plugin::CallAndReturn<void*, 0x82119A, size_t>(size);
 }
@@ -459,18 +474,16 @@ void* operator new[](size_t size) {
 }
 
 void operator delete(void* p) {
-    if (!p) {
-        return;
-    }
-    auto crtHeap = *reinterpret_cast<HANDLE*>(0x00C9C2F4);
-    if (!crtHeap || !HeapValidate(crtHeap, 0, p)) {
-        HeapFree(GetProcessHeap(), 0, p);
+    if (!p || IsEarlyBootPtr(p)) {
         return;
     }
     plugin::Call<0x8214BD, void*>(p);
 }
 
 void operator delete[](void* p) {
-    ::operator delete(p);
+    if (!p || IsEarlyBootPtr(p)) {
+        return;
+    }
+    plugin::Call<0x8213AE, void*>(p);
 }
 #endif
