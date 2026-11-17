@@ -592,6 +592,12 @@ void CWanted::RemoveExcessPursuitCops() {
 
 // 0x562C90
 void CWanted::Update() {
+    for (auto* copInPursuit : m_CopsInPursuit) {
+        if (copInPursuit && !copInPursuit->IsAlive()) {
+            RemovePursuitCop(copInPursuit);
+        }
+    }
+
     if (m_WantedLevel < eWantedLevel::WANTED_LEVEL_5) {
         if (m_TimeCounting) {
             auto newStatValue = m_CurrentChaseTime;
@@ -649,6 +655,10 @@ void CWanted::Update() {
         bool listMessedUp = false;
 
         for (auto& copInPursuit : m_CopsInPursuit) {
+            if (copInPursuit != nullptr && !copInPursuit->IsAlive()) {
+                RemovePursuitCop(copInPursuit);
+            }
+
             if (copInPursuit != nullptr) {
                 ++cops;
 
