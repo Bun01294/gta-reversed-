@@ -447,22 +447,38 @@ void operator delete(void* memory) {
 
 #ifndef NOTSA_STANDALONE
 namespace {
-alignas(16) uint8 s_EarlyBootHeap[2 * 1024 * 1024]; // 2 MB for pre-CRT allocations
+constexpr size_t EARLY_HEAP_SIZE = 256 * 1024 * 1024; // 256 MB virtual arena
+uint8* s_EarlyBootHeap = nullptr;
 size_t s_EarlyBootOffset = 0;
+void*  s_LastEarlyPtr = nullptr;
+size_t s_LastEarlySize = 0;
+
+inline uint8* GetEarlyBootHeap() noexcept {
+    if (!s_EarlyBootHeap) {
+        s_EarlyBootHeap = static_cast<uint8*>(VirtualAlloc(nullptr, EARLY_HEAP_SIZE, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    }
+    return s_EarlyBootHeap;
+}
 
 inline bool IsEarlyBootPtr(void* p) noexcept {
+    if (!s_EarlyBootHeap) {
+        return false;
+    }
     const auto addr = reinterpret_cast<uintptr_t>(p);
     const auto base = reinterpret_cast<uintptr_t>(s_EarlyBootHeap);
-    return addr >= base && addr < (base + sizeof(s_EarlyBootHeap));
+    return addr >= base && addr < (base + EARLY_HEAP_SIZE);
 }
 } // namespace
 
 void* operator new(size_t size) {
     if (!*reinterpret_cast<HANDLE*>(0x00C9C2F4)) {
+        uint8* base = GetEarlyBootHeap();
         const size_t alignedSize = ((size ? size : 1) + 15) & ~size_t(15);
-        if (s_EarlyBootOffset + alignedSize <= sizeof(s_EarlyBootHeap)) {
-            void* ptr = &s_EarlyBootHeap[s_EarlyBootOffset];
+        if (base && s_EarlyBootOffset + alignedSize <= EARLY_HEAP_SIZE) {
+            void* ptr = base + s_EarlyBootOffset;
             s_EarlyBootOffset += alignedSize;
+            s_LastEarlyPtr = ptr;
+            s_LastEarlySize = alignedSize;
             return ptr;
         }
     }
@@ -474,16 +490,21 @@ void* operator new[](size_t size) {
 }
 
 void operator delete(void* p) {
-    if (!p || IsEarlyBootPtr(p)) {
+    if (!p) {
+        return;
+    }
+    if (IsEarlyBootPtr(p)) {
+        if (p == s_LastEarlyPtr) {
+            s_EarlyBootOffset -= s_LastEarlySize;
+            s_LastEarlyPtr = nullptr;
+            s_LastEarlySize = 0;
+        }
         return;
     }
     plugin::Call<0x8214BD, void*>(p);
 }
 
 void operator delete[](void* p) {
-    if (!p || IsEarlyBootPtr(p)) {
-        return;
-    }
-    plugin::Call<0x8213AE, void*>(p);
+    ::operator delete(p);
 }
 #endif
