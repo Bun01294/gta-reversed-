@@ -726,21 +726,29 @@ void CCarCtrl::PossiblyFireHSMissile(CVehicle* entityLauncher, CEntity* targetEn
 
 // 0x424F80
 void CCarCtrl::PossiblyRemoveVehicle(CVehicle* vehicle) {
-    plugin::Call<0x424F80, CVehicle*>(vehicle);
-}
+    // Keep active vehicles with a living driver on 100% vanilla despawn distances
+    if (vehicle->m_pDriver && vehicle->m_pDriver->IsAlive() && vehicle->GetStatus() != STATUS_WRECKED) {
+        plugin::Call<0x424F80, CVehicle*>(vehicle);
+        return;
+    }
 
-// 0x423F10
-void CCarCtrl::PruneVehiclesOfInterest() {
-    ZoneScoped;
+    // Wrecked or abandoned/driverless vehicle:
+    // a) Stop counting wrecked/abandoned police cars & helicopters toward NumLawEnforcerCars
+    if (vehicle->vehicleFlags.bIsLawEnforcer) {
+        vehicle->ChangeLawEnforcerState(false);
+    }
 
-    if ((CTimer::GetFrameCounter() % 64) == 19 && FindPlayerCoors(-1).z < 950.0f) {
-        for (size_t i = 0; i < std::size(apCarsToKeep); i++) {
-            if (apCarsToKeep[i]) {
-                if (CTimer::GetTimeInMS() > aCarsToKeepTime[i] + 180000) {
-                    apCarsToKeep[i] = nullptr;
-                }
-            }
-        }
+    // b) Free a slot in NumRandomCars without causing a counter underflow when deleted later
+    if (vehicle->m_nVehicleCreatedBy == RANDOM_VEHICLE) {
+        UpdateCarCount(vehicle, true);
+        vehicle->m_nVehicleCreatedBy = PARKED_VEHICLE;
+        UpdateCarCount(vehicle, false);
+    }
+
+    // c) Only allow deletion if distance to the player exceeds 800.0f meters
+    const float distToPlayer = DistanceBetweenPoints(FindPlayerCentreOfWorld(), vehicle->GetPosition());
+    if (distToPlayer > 800.0f) {
+        plugin::Call<0x424F80, CVehicle*>(vehicle);
     }
 }
 
