@@ -739,9 +739,9 @@ void CCarCtrl::PossiblyRemoveVehicle(CVehicle* vehicle) {
     }
 
     // b) Free a slot in NumRandomCars without causing a counter underflow when deleted later
-    if (vehicle->m_nVehicleCreatedBy == RANDOM_VEHICLE) {
+    if (vehicle->IsCreatedBy(RANDOM_VEHICLE)) {
         UpdateCarCount(vehicle, true);
-        vehicle->m_nVehicleCreatedBy = PARKED_VEHICLE;
+        vehicle->m_nCreatedBy = PARKED_VEHICLE;
         UpdateCarCount(vehicle, false);
     }
 
