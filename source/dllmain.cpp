@@ -21,7 +21,12 @@ void LoadConfigurations() {
     // Then load all specific configurations.
     g_FastLoaderConfig.Load();
     g_MiscConfig.Load();
-    // ...
+
+    // Force-disable FastLoader skipping in case debug defaults are active in FastLoader.hpp
+    // (Check IntelliSense on g_FastLoaderConfig. if your branch prefixes these with 'b')
+    g_FastLoaderConfig.SkipMovies      = false;
+    g_FastLoaderConfig.SkipTitleScreen = false;
+    g_FastLoaderConfig.SkipCutscenes   = false;
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
