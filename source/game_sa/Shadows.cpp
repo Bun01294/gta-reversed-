@@ -108,6 +108,115 @@ void CShadows::Init() {
     std::ranges::for_each(aPermanentShadows, [&](auto& shadow) { shadow.Init(); });
 }
 
+std::ranges::for_each(aPermanentShadows, [&](auto& shadow) { shadow.Init(); });
+    std::ranges::for_each(s_ExtendedPermanentShadows, [&](auto& shadow) { shadow.Init(); });
+}
+
+// 0x706ED0
+void CShadows::Shutdown() {
+    RwTextureDestroy(gpShadowCarTex);
+    RwTextureDestroy(gpShadowPedTex);
+    RwTextureDestroy(gpShadowHeliTex);
+    RwTextureDestroy(gpShadowBikeTex);
+    RwTextureDestroy(gpShadowBaronTex);
+    RwTextureDestroy(gpShadowExplosionTex);
+    RwTextureDestroy(gpShadowHeadLightsTex);
+    RwTextureDestroy(gpShadowHeadLightsTex2);
+    RwTextureDestroy(gpBloodPoolTex);
+    RwTextureDestroy(gpHandManTex);
+    RwTextureDestroy(gpCrackedGlassTex);
+    RwTextureDestroy(gpPostShadowTex);
+}
+
+// 0x707770
+void CShadows::TidyUpShadows() {
+    std::ranges::for_each(
+        aPermanentShadows,
+        [&](auto& shadow) { shadow.m_nType = SHADOW_NONE; }
+    );
+    std::ranges::for_each(
+        s_ExtendedPermanentShadows,
+        [&](auto& shadow) { shadow.m_nType = SHADOW_NONE; }
+    );
+}
+
+// 0x706F60
+void CShadows::AddPermanentShadow(uint8 type, RwTexture* texture, CVector* posn, float topX, float topY, float rightX, float rightY, int16 intensity, uint8 red, uint8 green, uint8 blue, float drawDistance, uint32 time, float upDistance) {
+    // Find a free slot or replace the oldest shadow in our 512-slot pool
+    CPermanentShadow* target = nullptr;
+    uint32 oldestTime = UINT32_MAX;
+
+    for (auto& s : s_ExtendedPermanentShadows) {
+        if (s.m_nType == SHADOW_NONE) {
+            target = &s;
+            break;
+        }
+        if (s.m_nTimeCreated < oldestTime) {
+            oldestTime = s.m_nTimeCreated;
+            target = &s;
+        }
+    }
+
+    if (target) {
+        target->m_nType = (eShadowType)type;
+        target->m_pTexture = texture;
+        target->m_vecPosn = *posn;
+        target->m_fFrontX = topX;
+        target->m_fFrontY = topY;
+        target->m_fSideX = rightX;
+        target->m_fSideY = rightY;
+        target->m_nIntensity = intensity;
+        target->m_nRed = red;
+        target->m_nGreen = green;
+        target->m_nBlue = blue;
+        target->m_fZDistance = drawDistance;
+        target->m_nTimeDuration = time;
+        target->m_fScale = upDistance;
+        target->m_nTimeCreated = CTimer::GetTimeInMS();
+    }
+}
+
+// 0x70C950
+void CShadows::UpdatePermanentShadows() {
+    ZoneScoped;
+
+    const uint32 curTime = CTimer::GetTimeInMS();
+    for (size_t i = 0; i < s_ExtendedPermanentShadows.size(); ++i) {
+        auto& s = s_ExtendedPermanentShadows[i];
+        if (s.m_nType == SHADOW_NONE) {
+            continue;
+        }
+
+        const uint32 elapsed = curTime - s.m_nTimeCreated;
+        if (elapsed >= s.m_nTimeDuration) {
+            s.m_nType = SHADOW_NONE;
+            continue;
+        }
+
+        uint16 curIntensity = s.m_nIntensity;
+        if (elapsed > (s.m_nTimeDuration * 3) / 4) {
+            const float fade = 1.0f - float(elapsed - (s.m_nTimeDuration * 3) / 4) / float(s.m_nTimeDuration / 4);
+            curIntensity = (uint16)(float(s.m_nIntensity) * std::clamp(fade, 0.0f, 1.0f));
+        }
+
+        StoreStaticShadow(
+            reinterpret_cast<uint32>(&s),
+            s.m_nType,
+            s.m_pTexture,
+            s.m_vecPosn,
+            s.m_fFrontX, s.m_fFrontY,
+            s.m_fSideX, s.m_fSideY,
+            curIntensity,
+            s.m_nRed, s.m_nGreen, s.m_nBlue,
+            s.m_fZDistance,
+            s.m_fScale,
+            40.0f,
+            false,
+            0.0f
+        );
+    }
+}
+
 // 0x706ED0
 void CShadows::Shutdown() {
     RwTextureDestroy(gpShadowCarTex);
