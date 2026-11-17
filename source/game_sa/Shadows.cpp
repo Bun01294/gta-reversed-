@@ -15,6 +15,7 @@ static std::array<CPermanentShadow, 512> s_ExtendedPermanentShadows{};
 void CShadows::InjectHooks() {
     RH_ScopedClass(CShadows);
     RH_ScopedCategory("Shadows");
+
     RH_ScopedInstall(Init, 0x706CD0);
     RH_ScopedInstall(Shutdown, 0x706ED0);
     RH_ScopedInstall(TidyUpShadows, 0x707770);
@@ -53,7 +54,6 @@ void CStaticShadow::InjectHooks() {
     RH_ScopedCategory("Shadows");
 
     RH_ScopedInstall(Free, 0x707670);
-    //RH_ScopedInstall(Init, 0x0);
 }
 
 // 0x707670 
@@ -106,9 +106,6 @@ void CShadows::Init() {
     aPolyBunches.back().m_pNext = nullptr;
 
     std::ranges::for_each(aPermanentShadows, [&](auto& shadow) { shadow.Init(); });
-}
-
-std::ranges::for_each(aPermanentShadows, [&](auto& shadow) { shadow.Init(); });
     std::ranges::for_each(s_ExtendedPermanentShadows, [&](auto& shadow) { shadow.Init(); });
 }
 
@@ -142,7 +139,6 @@ void CShadows::TidyUpShadows() {
 
 // 0x706F60
 void CShadows::AddPermanentShadow(uint8 type, RwTexture* texture, CVector* posn, float topX, float topY, float rightX, float rightY, int16 intensity, uint8 red, uint8 green, uint8 blue, float drawDistance, uint32 time, float upDistance) {
-    // Find a free slot or replace the oldest shadow in our 512-slot pool
     CPermanentShadow* target = nullptr;
     uint32 oldestTime = UINT32_MAX;
 
@@ -215,42 +211,6 @@ void CShadows::UpdatePermanentShadows() {
             0.0f
         );
     }
-}
-
-// 0x706ED0
-void CShadows::Shutdown() {
-    RwTextureDestroy(gpShadowCarTex);
-    RwTextureDestroy(gpShadowPedTex);
-    RwTextureDestroy(gpShadowHeliTex);
-    RwTextureDestroy(gpShadowBikeTex);
-    RwTextureDestroy(gpShadowBaronTex);
-    RwTextureDestroy(gpShadowExplosionTex);
-    RwTextureDestroy(gpShadowHeadLightsTex);
-    RwTextureDestroy(gpShadowHeadLightsTex2);
-    RwTextureDestroy(gpBloodPoolTex);
-    RwTextureDestroy(gpHandManTex);
-    RwTextureDestroy(gpCrackedGlassTex);
-    RwTextureDestroy(gpPostShadowTex);
-}
-
-// 0x707770
-void CShadows::TidyUpShadows() {
-    std::ranges::for_each(
-        aPermanentShadows,
-        [&](auto& shadow) { shadow.m_nType = SHADOW_NONE; }
-    );
-}
-
-// 0x706F60
-void CShadows::AddPermanentShadow(uint8 type, RwTexture* texture, CVector* posn, float topX, float topY, float rightX, float rightY, int16 intensity, uint8 red, uint8 greeb, uint8 blue, float drawDistance, uint32 time, float upDistance) {
-    ((void(__cdecl*)(uint8, RwTexture*, CVector*, float, float, float, float, int16, uint8, uint8, uint8, float, uint32, float))0x706F60)(type, texture, posn, topX, topY, rightX, rightY, intensity, red, greeb, blue, drawDistance, time, upDistance);
-}
-
-// 0x70C950
-void CShadows::UpdatePermanentShadows() {
-    ZoneScoped;
-
-    ((void(__cdecl*)())0x70C950)();
 }
 
 // 0x707930
@@ -355,7 +315,7 @@ void CShadows::SetRenderModeForShadowType(eShadowType type) {
 // 0x7074F0
 void CShadows::RemoveOilInArea(float minX, float maxX, float minY, float maxY) {
     CRect rect{ {minX, minY}, {maxX, maxY} };
-    for (auto& shadow : aPermanentShadows) {
+    for (auto& shadow : s_ExtendedPermanentShadows) {
         switch (shadow.m_nType) {
         case SHADOW_OIL_1:
         case SHADOW_OIL_5:
@@ -380,7 +340,7 @@ void CShadows::GunShotSetsOilOnFire(const CVector& shotOrigin, const CVector& sh
     // Find closest shadow (but not further than 1 unit)
     CPermanentShadow* closest{};
     auto              closestDist{1.f};
-    for (auto& shdw : aPermanentShadows) {
+    for (auto& shdw : s_ExtendedPermanentShadows) {
         switch (shdw.m_nType) {
         case SHADOW_OIL_1:
         case SHADOW_OIL_5:
@@ -468,14 +428,6 @@ uint16 CalculateShadowStrength(float currDist, float maxDist, uint16 maxStrength
 
 // 0x707B40
 void CShadows::StoreShadowForPedObject(CPed* ped, float displacementX, float displacementY, float frontX, float frontY, float sideX, float sideY) {
-    // Okay, so.
-    // This function is called from `CCutsceneObject::PreRender`
-    // And you might ask "what the fuck, an object is not a ped!!"
-    // well, in R* world it is.
-    // it has bones (as anything can have bones actually, that's a known fact)
-    // the `GetBonePosition` below *just works* because it doesn't access any
-    // `CPed` specific member variables.
-    // But we really should fix this in a sensible way in the future.
     assert(ped->GetIsTypePed() || ped->GetIsTypeObject());
 
     const auto  bonePos           = ped->GetBonePosition(BONE_ROOT);
@@ -1103,135 +1055,6 @@ bool CShadows::StoreStaticShadow(uint32 id, eShadowType type, RwTexture* texture
 // 0x70BDA0
 void CShadows::StoreShadowForVehicle(CVehicle* vehicle, VEH_SHD_TYPE vehShadowType) {
     ((void(__cdecl*)(CVehicle*, VEH_SHD_TYPE))0x70BDA0)(vehicle, vehShadowType);
-    // So far so good (most likely), I'm just lazy to finish it
-    /*
-    const auto shdwStrength = CTimeCycle::m_CurrentColours.m_nShadowStrength;
-
-    if (GraphicsHighQuality() || !shdwStrength) {
-        return;
-    }
-
-    const auto isPlyrVeh = FindPlayerVehicle() == vehicle;
-
-    const auto& camPos = TheCamera.GetPosition();
-    const auto& vehPos = vehicle->GetPosition();
-
-    auto camToVehDist2DSq = (camPos - vehPos).SquaredMagnitude2D();
-    if (CCutsceneMgr::IsRunning()) {
-        camToVehDist2DSq /= sq(TheCamera.m_fLODDistMultiplier) * 4.f;
-    }
-    const auto camToVehDist2D = std::sqrt(camToVehDist2DSq);
-
-    const auto maxDist = [&] {
-        switch (vehShadowType) {
-        case VEH_SHD_HELI:
-        case VEH_SHD_PLANE:
-        case VEH_SHD_RC:
-            return 144.f;
-        case VEH_SHD_BIG_PLANE:
-            return 288.f;
-        default:
-            return 18.f;
-        }
-    }();
-
-    if (camToVehDist2DSq >= sq(maxDist)) {
-        return;
-    }
-
-    const auto vehBB = vehicle->GetColModel()->GetBoundingBox();
-
-    auto shdwSize = CVector2D{ vehBB.GetSize() };
-
-    float sizeMultY = 1.f;
-    switch ((eModelID)vehicle->m_nModelIndex) {
-    case MODEL_VORTEX:
-        return;
-    case UNLOAD_MODEL:
-        shdwSize.x *= 0.4f;
-        shdwSize.y *= 0.9f;
-        sizeMultY = 1.f;
-        break;
-    case MODEL_FREEWAY:
-    case MODEL_SANCHEZ:
-    case MODEL_COPBIKE:
-        shdwSize.x *= 1.f;
-        shdwSize.y *= 1.f;
-        sizeMultY = 0.03f;
-        break;
-    case MODEL_LEVIATHN:
-    case MODEL_HUNTER:
-    case MODEL_SEASPAR:
-    case MODEL_SPARROW:
-    case MODEL_MAVERICK:
-    case MODEL_POLMAV:
-        shdwSize.x *= 0.4f;
-        shdwSize.y *= 3.0f;
-        sizeMultY = 0.5f;
-        break;
-    case MODEL_RCRAIDER:
-    case MODEL_RCGOBLIN:
-        shdwSize.x *= 2.0f;
-        shdwSize.y *= 1.5f;
-        sizeMultY = 0.2f;
-        break;
-    case MODEL_BIKE:
-    case MODEL_MTBIKE:
-    case MODEL_BMX:
-    case MODEL_PIZZABOY:
-    case MODEL_PCJ600:
-    case MODEL_FAGGIO:
-        shdwSize.x *= 1.f;
-        shdwSize.y *= 1.2f;
-        sizeMultY = 0.05f;
-        break;
-    }
-
-    auto cc = CTimeCycle::m_CurrentColours.m_nShadowStrength;
-    if (camToVehDist2D >= maxDist * 0.75f) {
-        auto cc = (uint16)(1.f - (camToVehDist2D - maxDist * 0.75f) / (camToVehDist2D * 0.25f)) * (float)CTimeCycle::m_CurrentColours.m_nShadowStrength;
-    }
-
-    const auto pos = vehPos - CVector{CVector2D{ vehicle->GetMatrix().GetForward() } * ((shdwSize.y * 0.5f - vehBB.m_vecMax.y) * sizeMultY)};
-
-    auto zDistance = 4.5;
-
-    const auto texture = [&] {
-        switch (vehShadowType) {
-        case VEH_SHD_CAR:
-            return gpShadowCarTex;
-        case VEH_SHD_BIKE: {
-            auto mult = vehicle->AsBike()->m_RideAnimData.m_fAnimLean * 5.092958f + 1.f; // TODO: Magic number
-            if (vehicle->GetStatus() == STATUS_ABANDONED) {
-                if (const auto tilt = std::abs(vehicle->GetMatrix().GetRight().z); tilt >= 0.6f) {
-                    mult += tilt * 4.f;
-                }
-            }
-            shdwSize.x *= mult;
-
-            return gpShadowBikeTex;
-        }
-        case VEH_SHD_HELI:
-            if (isPlyrVeh) {
-                zDistance = 50.f;
-            }
-            return gpShadowHeliTex;
-        case VEH_SHD_BIG_PLANE:
-        case VEH_SHD_PLANE:
-            cc = CTimeCycle::m_CurrentColours.m_nShadowStrength;
-            if (isPlyrVeh) {
-                zDistance = 50.f;
-            }
-            return gpShadowBaronTex;
-        case VEH_SHD_RC:
-            shdwSize.x *= 2.2f;
-            shdwSize.y *= 1.5f;
-            return gpShadowBaronTex;
-        }
-    }();
-
-    // 0x70C143...
-    */
 }
 
 // 0x70C500
