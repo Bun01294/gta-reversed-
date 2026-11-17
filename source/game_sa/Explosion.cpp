@@ -393,7 +393,7 @@ void CExplosion::AddExplosion(CEntity* victim, CEntity* creator, eExplosionType 
     if (victim)
         g_InterestingEvents.Add(CInterestingEvents::EType::EVENT_ATTRACTOR, victim);
 
-    CShadows::AddPermanentShadow(eShadowType::SHADOW_DEFAULT, gpShadowHeliTex, &pos, 8.0f, 0.0f, 0.0f, -8.0f, 200, 0, 0, 0, 10.0f, 30000, 1.0f);
+    CShadows::AddPermanentShadow(eShadowType::SHADOW_DEFAULT, gpShadowHeliTex, &pos, 8.0f, 0.0f, 0.0f, -8.0f, 200, 0, 0, 0, 10.0f, 3600000, 1.0f);
 
     if (exp->m_fVisibleDistance != 0.0f && !exp->m_nParticlesExpireTime) {
         CWorld::TriggerExplosion(pos, exp->m_fRadius, exp->m_fVisibleDistance, victim, creator, DoesNeedToVehProcessBombTimer(type), exp->m_fDamagePercentage);
