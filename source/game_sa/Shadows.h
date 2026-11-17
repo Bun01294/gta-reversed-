@@ -166,7 +166,7 @@ struct _ProjectionParam {
 VALIDATE_SIZE(_ProjectionParam, 0x98);
 
 constexpr uint32 MAX_STORED_SHADOWS      = 48;
-constexpr uint32 MAX_PERMANENT_SHADOWS   = 512;
+constexpr uint32 MAX_PERMANENT_SHADOWS   = 48;
 constexpr uint32 MAX_STATIC_SHADOWS      = 48;
 constexpr uint32 MAX_SHADOW_POLY_BUNCHES = 360;
 
