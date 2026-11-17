@@ -2,8 +2,6 @@
 
 #include "TaskSimpleDead.h"
 #include "Shadows.h"
-#include "Stats.h"
-#include "PedClothesDesc.h"
 
 void CTaskSimpleDead::InjectHooks() {
     RH_ScopedVirtualClass(CTaskSimpleDead, 0x86DEA4, 9);
@@ -33,16 +31,15 @@ bool CTaskSimpleDead::ProcessPed(CPed* ped) {
         m_nDeathTimeMS = CTimer::GetTimeInMS();
         m_bFirstTime = false;
 
-        if (ped->bIsOnFire && ped->m_pFire) {
+        if (ped->m_pFire) {
             ped->m_pFire->Extinguish();
-            ped->bIsOnFire = false;
         }
     }
 
     if (!m_bBloodPuddleCreated && CTimer::GetTimeInMS() > m_nDeathTimeMS + 2000) {
         m_bBloodPuddleCreated = true;
 
-        if (!ped->bInVehicle && !m_bHasDrowned && !ped->physicalFlags.bSubmergedInWater && !CStats::BloodyFootprintsEnabled() && !ped->bDoBloodyFootprints) {
+        if (!ped->bInVehicle && !m_bHasDrowned && !ped->physicalFlags.bSubmergedInWater && !ped->bDoBloodyFootprints) {
             CVector pos = ped->GetPosition();
             if (RwMatrix* boneMat = ped->GetBoneMatrix(BONE_PELVIS)) {
                 pos = *reinterpret_cast<CVector*>(RwMatrixGetPos(boneMat));
