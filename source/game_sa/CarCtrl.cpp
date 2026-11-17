@@ -89,7 +89,7 @@ void CCarCtrl::InjectHooks()
     RH_ScopedInstall(PickNextNodeRandomly, 0x42DE80, { .Reversed = false });
     RH_ScopedInstall(PickNextNodeToChaseCar, 0x426EF0, { .Reversed = false });
     RH_ScopedInstall(PickNextNodeToFollowPath, 0x427740, { .Reversed = false });
-    RH_ScopedInstall(PossiblyRemoveVehicle, 0x424F80, { .Reversed = false });
+    RH_ScopedInstall(, 0x424F80, { .Reversed = false });
     RH_ScopedInstall(ReconsiderRoute, 0x42FC40, { .Reversed = false });
     RH_ScopedInstall(RegisterVehicleOfInterest, 0x423DE0, { .Reversed = false });
     RH_ScopedInstall(ScanForPedDanger, 0x42CE40, { .Reversed = false });
@@ -749,6 +749,21 @@ void CCarCtrl::PossiblyRemoveVehicle(CVehicle* vehicle) {
     const float distToPlayer = DistanceBetweenPoints(FindPlayerCentreOfWorld(), vehicle->GetPosition());
     if (distToPlayer > 800.0f) {
         plugin::Call<0x424F80, CVehicle*>(vehicle);
+    }
+}
+
+// 0x423F10
+void CCarCtrl::PruneVehiclesOfInterest() {
+    ZoneScoped;
+
+    if ((CTimer::GetFrameCounter() % 64) == 19 && FindPlayerCoors(-1).z < 950.0f) {
+        for (size_t i = 0; i < std::size(apCarsToKeep); i++) {
+            if (apCarsToKeep[i]) {
+                if (CTimer::GetTimeInMS() > aCarsToKeepTime[i] + 180000) {
+                    apCarsToKeep[i] = nullptr;
+                }
+            }
+        }
     }
 }
 
