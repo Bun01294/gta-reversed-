@@ -166,7 +166,7 @@ struct _ProjectionParam {
 VALIDATE_SIZE(_ProjectionParam, 0x98);
 
 constexpr uint32 MAX_STORED_SHADOWS      = 48;
-constexpr uint32 MAX_PERMANENT_SHADOWS   = 48;
+constexpr uint32 MAX_PERMANENT_SHADOWS   = 512;
 constexpr uint32 MAX_STATIC_SHADOWS      = 48;
 constexpr uint32 MAX_SHADOW_POLY_BUNCHES = 360;
 
@@ -178,6 +178,7 @@ public:
     static inline auto& aStaticShadows = StaticRef<std::array<CStaticShadow, MAX_STATIC_SHADOWS>>(0xC4A030);
     static inline auto& aPermanentShadows = StaticRef<std::array<CPermanentShadow, MAX_PERMANENT_SHADOWS>>(0xC4AC30);
     static inline auto& asShadowsStored = StaticRef<std::array<CRegisteredShadow, MAX_STORED_SHADOWS>>(0xC40430);
+    static inline std::array<CPermanentShadow, MAX_PERMANENT_SHADOWS> aPermanentShadows{};
 
 public:
     static void InjectHooks();
