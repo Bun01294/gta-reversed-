@@ -22,11 +22,17 @@ void LoadConfigurations() {
     g_FastLoaderConfig.Load();
     g_MiscConfig.Load();
 
-    // Force-disable FastLoader skipping in case debug defaults are active in FastLoader.hpp
-    // (Check IntelliSense on g_FastLoaderConfig. if your branch prefixes these with 'b')
-    g_FastLoaderConfig.SkipMovies      = false;
-    g_FastLoaderConfig.SkipTitleScreen = false;
-    g_FastLoaderConfig.SkipCutscenes   = false;
+    // Skip EAX and nVidia splashes, but keep videos, audio, loading screens, and the Main Menu!
+    g_FastLoaderConfig.SaveGameToLoad = -2; // -2 = Do NOT auto-load a save or skip the Main Menu
+    g_FastLoaderConfig.NoEAX          = true;
+    g_FastLoaderConfig.NoNVidia       = true;
+    g_FastLoaderConfig.NoLogo         = false;
+    g_FastLoaderConfig.NoTitleOrIntro = false;
+    g_FastLoaderConfig.NoCopyright    = false;
+    g_FastLoaderConfig.NoFading       = false;
+    g_FastLoaderConfig.NoLoadScreen   = false;
+    g_FastLoaderConfig.NoLoadBar      = false;
+    g_FastLoaderConfig.NoLoadingTune  = false;
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
