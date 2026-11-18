@@ -6,8 +6,6 @@
 #include "CarCtrl.h"
 #include "Wanted.h"
 #include "Shadows.h"
-#include "Tasks/TaskTypes/TaskSimpleDead.h"
-#include "Explosion.h"
 #include "Entity/Vehicle/Vehicle.h"
 
 void InjectHooksMain() {
@@ -35,7 +33,7 @@ void InjectHooksMain() {
         RH_ScopedInstall(Update, 0x562C90);
     }
 
-    // 4. Shadows: 512 permanent shadows for blood pools & explosion marks
+    // 4. Shadows: 512 permanent shadows + 1-hour blood pools & explosion scorch marks
     {
         RH_ScopedClass(CShadows);
         RH_ScopedCategory("Shadows");
@@ -45,17 +43,7 @@ void InjectHooksMain() {
         RH_ScopedInstall(UpdatePermanentShadows, 0x70C950);
     }
 
-    // 5. TaskSimpleDead: 1-hour blood pools
-    CTaskSimpleDead::InjectHooks();
-
-    // 6. Explosion: 1-hour explosion scorch marks
-    {
-        RH_ScopedClass(CExplosion);
-        RH_ScopedCategoryGlobal();
-        RH_ScopedInstall(AddExplosion, 0x736A50);
-    }
-
-    // 7. Vehicle: Rhino tank no longer explosion-proof
+    // 5. Vehicle: Rhino tank no longer explosion-proof
     {
         RH_ScopedVirtualClass(CVehicle, 0x871e80, 66);
         RH_ScopedCategory("Vehicle");
