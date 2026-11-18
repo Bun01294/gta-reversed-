@@ -44,25 +44,9 @@ void CPools::InjectHooks() {
     RH_ScopedClass(CPools);
     RH_ScopedCategoryGlobal();
 
-    RH_ScopedInstall(Initialise, 0x550F10);
-    RH_ScopedInstall(ShutDown, 0x5519F0);
-    RH_ScopedInstall(CheckBuildingAtomics, 0x550170);
-    RH_ScopedInstall(CheckPoolsEmpty, 0x551950);
-    RH_ScopedInstall(GetObject, 0x550050);
-    RH_ScopedInstall(GetObjectRef, 0x550020);
-    RH_ScopedInstall(GetPed, 0x54FF90);
-    RH_ScopedInstall(GetPedRef, 0x54FF60);
-    RH_ScopedInstall(GetVehicle, 0x54FFF0);
-    RH_ScopedInstall(GetVehicleRef, 0x54FFC0);
-    RH_ScopedInstall(Load, 0x5D0890);
-    RH_ScopedInstall(LoadObjectPool, 0x5D4A40);
-    RH_ScopedInstall(LoadPedPool, 0x5D2D70);
-    RH_ScopedInstall(LoadVehiclePool, 0x5D2A20);
-    RH_ScopedInstall(MakeSureSlotInObjectPoolIsEmpty, 0x550080);
-    RH_ScopedInstall(Save, 0x5D0880);
-    RH_ScopedInstall(SaveObjectPool, 0x5D4940, { .Reversed = false });
-    RH_ScopedInstall(SavePedPool, 0x5D4B40, { .Reversed = false });
-    RH_ScopedInstall(SaveVehiclePool, 0x5D4800, { .Reversed = false });
+    // Do NOT hook 0x550F10 (Initialise) so OpenLimitAdjuster / Fastman92 hooks inside 0x550F10
+    // can initialize ColModelPool and other pools without crashing at 0x...a46a!
+}
 }
 
 // 0x550F10
