@@ -17,8 +17,8 @@ void InjectHooksMain() {
     {
         RH_ScopedClass(CPopulation);
         RH_ScopedCategoryGlobal();
-        RH_ScopedGlobalInstall(ManagePed, 0x611FC0);
-        RH_ScopedGlobalInstall(Update, 0x616650);
+        RH_ScopedInstall(ManagePed, 0x611FC0);
+        RH_ScopedInstall(Update, 0x616650);
     }
 
     // 2. CarCtrl: 1-hour wrecked/abandoned vehicles within 800m + free traffic/cop counters
