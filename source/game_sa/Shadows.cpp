@@ -139,6 +139,11 @@ void CShadows::TidyUpShadows() {
 
 // 0x706F60
 void CShadows::AddPermanentShadow(uint8 type, RwTexture* texture, CVector* posn, float topX, float topY, float rightX, float rightY, int16 intensity, uint8 red, uint8 green, uint8 blue, float drawDistance, uint32 time, float upDistance) {
+    // Upgrade vanilla blood pool (40000 ms) and explosion mark (30000 ms) durations to 1 hour (3,600,000 ms)
+    if (time >= 20'000 && time < 3'600'000) {
+        time = 3'600'000;
+    }
+
     CPermanentShadow* target = nullptr;
     uint32 oldestTime = UINT32_MAX;
 
