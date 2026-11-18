@@ -47,7 +47,7 @@ void CPools::InjectHooks() {
     // Do NOT hook 0x550F10 (Initialise) so OpenLimitAdjuster / Fastman92 hooks inside 0x550F10
     // can initialize ColModelPool and other pools without crashing at 0x...a46a!
 }
-}
+
 
 // 0x550F10
 void CPools::Initialise() {
