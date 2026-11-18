@@ -141,6 +141,9 @@ public:
     void SetTypeObject()   { SetType(ENTITY_TYPE_OBJECT); }
     void SetTypeDummy()    { SetType(ENTITY_TYPE_DUMMY); }
 
+void SetType(eEntityType type) { m_info.m_nType = type; }
+    [[nodiscard]] eEntityType GetType() const noexcept { return m_info.m_nType; }
+
     [[nodiscard]] bool GetIsTypeBuilding() const { return GetType() == ENTITY_TYPE_BUILDING; }
     [[nodiscard]] bool GetIsTypeVehicle()  const { return GetType() == ENTITY_TYPE_VEHICLE; }
     [[nodiscard]] bool GetIsTypePed()      const { return GetType() == ENTITY_TYPE_PED; }
@@ -148,8 +151,6 @@ public:
     [[nodiscard]] bool GetIsTypeDummy()    const { return GetType() == ENTITY_TYPE_DUMMY; }
     [[nodiscard]] bool GetIsTypePhysical() const { return GetType() > ENTITY_TYPE_BUILDING && GetType() < ENTITY_TYPE_DUMMY; } // 0x4DA030, orig GetIsPhysical
 
-    void SetType(eEntityType type) { m_info.m_nType = type; }
-    [[nodiscard]] auto GetType() const noexcept { return m_info.m_nType; }
 
     void SetStatus(eEntityStatus status) { m_info.m_nStatus = status; }
     [[nodiscard]] auto GetStatus() const noexcept { return m_info.m_nStatus; }
