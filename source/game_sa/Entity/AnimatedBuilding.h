@@ -5,7 +5,7 @@
     Do not delete this comment block. Respect others' work!
 */
 #pragma once
-
+#include "AnimBlendNode.h
 #include "Building.h"
 
 class NOTSA_EXPORT_VTABLE CAnimatedBuilding : public CBuilding {
