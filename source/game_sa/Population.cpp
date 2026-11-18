@@ -63,7 +63,7 @@ void CPopulation::InjectHooks() {
     RH_ScopedGlobalInstall(PickRiotRoadBlockCar, 0x6144B0);
     RH_ScopedGlobalInstall(ConvertToRealObject, 0x614580);
     RH_ScopedGlobalInstall(ConvertToDummyObject, 0x614670);
-    RH_ScopedGlobalInstall(AddToPopulation, 0x614720, { .Reversed = false });
+    //RH_ScopedGlobalInstall(AddToPopulation, 0x614720, { .Reversed = false });
     RH_ScopedGlobalInstall(GeneratePedsAtAttractors, 0x615970);
     RH_ScopedGlobalInstall(GeneratePedsAtStartOfGame, 0x615C90);
     RH_ScopedGlobalInstall(ManageObject, 0x615DC0, { .Reversed = false });
