@@ -14,16 +14,7 @@ void CColModel::InjectHooks() {
     RH_ScopedClass(CColModel);
     RH_ScopedCategory("Collision");
 
-    RH_ScopedInstall(operator new, 0x40FC30);
-    RH_ScopedInstall(operator delete, 0x40FC40);
-    RH_ScopedInstall(operator=, 0x40F7C0);
-    // Keep 0x40F740 and 0x40F810 unhooked in gta_sa.exe so external ASI mods checking 0x40F740 don't patch into our DLL
-    RH_ScopedInstall(MakeMultipleAlloc, 0x40F740, { .Reversed = false });
-    RH_ScopedOverloadedInstall(AllocateData, "void", 0x40F810, void(CColModel::*)(), { .Reversed = false });
-    RH_ScopedOverloadedInstall(AllocateData, "params", 0x40F870, void(CColModel::*)(int32, int32, int32, int32, int32, bool));
-    RH_ScopedInstall(RemoveCollisionVolumes, 0x40F9E0);
-    RH_ScopedInstall(CalculateTrianglePlanes, 0x40FA30);
-    RH_ScopedInstall(RemoveTrianglePlanes, 0x40FA40);
+    // Do NOT hook CColModel in gta_sa.exe so external ASI mods checking 0x40F740/0x40F810 don't corrupt our DLL
 }
 
 CColModel::CColModel() : m_boundBox() {
