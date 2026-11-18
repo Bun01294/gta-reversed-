@@ -592,15 +592,59 @@ void CWanted::RemoveExcessPursuitCops() {
 
 // 0x562C90
 void CWanted::Update() {
-    // 1. Immediately free pursuit slots for any dead cops so new cops spawn at normal vanilla rates
+    // 1. Immediately free pursuit slots for any dead cops
     for (auto* copInPursuit : m_CopsInPursuit) {
         if (copInPursuit && !copInPursuit->IsAlive()) {
+            if (copInPursuit->bHasBeenAddedToPopulation) {
+                CPopulation::UpdatePedCount(copInPursuit, true);
+                CPopulation::UpdatePedCounts();
+            }
             RemovePursuitCop(copInPursuit);
         }
     }
 
-    // 2. Make Rhino tanks (including cheat-spawned Rhinos) vulnerable to Rocket rounds
+    // 2. Also ensure any dead cop in the ped pool (e.g. killed before joining pursuit or in a car) frees ms_nNumCop
+    if (auto* pedPool = GetPedPool()) {
+        const int32 pedPoolSize = pedPool->GetSize();
+        for (int32 i = 0; i < pedPoolSize; ++i) {
+            if (CPed* ped = pedPool->GetAt(i)) {
+                if (!ped->IsAlive() && ped->bHasBeenAddedToPopulation) {
+                    CPopulation::UpdatePedCount(ped, true);
+                    CPopulation::UpdatePedCounts();
+                }
+            }
+        }
+    }
+
+    // 3. Free NumLawEnforcerCars for wrecked/dead-driver police cars + make Rhino tanks vulnerable to rocket rounds
     if (auto* vehPool = GetVehiclePool()) {
+        const int32 poolSize = vehPool->GetSize();
+        for (int32 i = 0; i < poolSize; ++i) {
+            CVehicle* veh = vehPool->GetAt(i);
+            if (!veh) {
+                continue;
+            }
+
+            // If a law enforcement vehicle is wrecked, or has a dead driver, free its law enforcer slot
+            // so new LSPD cop cars & helicopters can spawn without waiting for the old car to despawn
+            if (veh->vehicleFlags.bIsLawEnforcer) {
+                const bool driverDead = veh->m_pDriver && !veh->m_pDriver->IsAlive();
+                const bool isWrecked  = veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f;
+                bool hasLivingCopNear = false;
+                if (!veh->m_pDriver && !isWrecked) {
+                    for (auto* cop : m_CopsInPursuit) {
+                        if (cop && cop->IsAlive() && DistanceBetweenPoints(cop->GetPosition(), veh->GetPosition()) < 30.0f) {
+                            hasLivingCopNear = true;
+                            break;
+                        }
+                    }
+                }
+                if (isWrecked || driverDead || (!veh->m_pDriver && !hasLivingCopNear)) {
+                    veh->ChangeLawEnforcerState(false);
+                }
+            }
+        }
+
         for (auto& exp : CExplosion::aExplosions) {
             if (!exp.m_nActiveCounter) {
                 continue;
@@ -608,7 +652,6 @@ void CWanted::Update() {
             if (exp.m_nType != EXPLOSION_ROCKET && exp.m_nType != EXPLOSION_WEAK_ROCKET) {
                 continue;
             }
-            const int32 poolSize = vehPool->GetSize();
             for (int32 i = 0; i < poolSize; ++i) {
                 if (CVehicle* veh = vehPool->GetAt(i)) {
                     if (veh->m_nModelIndex == MODEL_RHINO && veh->GetStatus() != STATUS_WRECKED && veh->m_fHealth > 0.0f) {
