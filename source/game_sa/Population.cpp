@@ -1774,66 +1774,12 @@ void CPopulation::ManageAllPopulation() {
 
 // 0x616190
 void CPopulation::ManagePopulation() {
-    ZoneScoped;
-    constexpr auto framePopulation = 32;
-    const auto& centre = FindPlayerCentreOfWorld();
-    const uint32 batch = CTimer::GetFrameCounter() % framePopulation;
-    
-    {
-        ZoneScopedN("Manage Objects");
-        auto* pool = GetObjectPool();
-        const auto poolSize = pool->GetSize();
-        const auto startIdx = (poolSize * batch) / framePopulation;
-        const auto endIdx   = (poolSize * (batch + 1)) / framePopulation;
-        for (auto i = startIdx; i < endIdx; ++i) {
-            if (auto* obj = pool->GetAt(i)) {
-                ManageObject(obj, centre);
-            }
-        }
-    }
-    
-    {
-        ZoneScopedN("Manage Dummies");
-        auto* pool = GetDummyPool();
-        const auto poolSize = pool->GetSize();
-        const auto startIdx = (poolSize * batch) / framePopulation;
-        const auto endIdx   = (poolSize * (batch + 1)) / framePopulation;
-        for (auto i = startIdx; i < endIdx; ++i) {
-            if (auto* dummy = pool->GetAt(i)) {
-                ManageDummy(dummy, centre);
-            }
-        }
-    }
-    
-    {
-        ZoneScopedN("Manage Peds");
-        const uint32 deadPeds = CountDeadPopulationPeds();
-        const int32 activePeds = (int32)ms_nTotalPeds - (int32)deadPeds;
-        UNUSED(activePeds); // Used when checking against MaxNumberOfPedsInUse
-
-        auto* pool = GetPedPool();
-        for (auto& ped : pool->GetAllValid()) {
-            ManagePed(&ped, centre);
-        }
-    }
+    ((void(__cdecl*)())0x616190)();
 }
 
 // 0x616300
 void CPopulation::RemovePedsIfThePoolGetsFull() {
-    ZoneScoped;
-
-    if (CTimer::GetFrameCounter() % 8 != 5) {
-        return;
-    }
-    if (GetPedPool()->GetNoOfFreeSpaces() >= 8) {
-        return;
-    }
-    const auto closest = rng::min( // It's guaranteed there to be a ped
-        GetPedPool()->GetAllValid<CPed*>(),
-        {},
-        [campos = TheCamera.GetPosition()](CPed* ped) { return (ped->GetPosition() - campos).SquaredMagnitude(); }
-    );
-    RemovePed(closest);
+    ((void(__cdecl*)())0x616300)();
 }
 
 // 0x616420
