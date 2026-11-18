@@ -679,9 +679,16 @@ float CPopulation::FindPedMultiplierMotorway() {
 
 static uint32 CountDeadPopulationPeds() {
     uint32 deadCount = 0;
-    for (auto& ped : GetPedPool()->GetAllValid()) {
-        if (!ped.IsPlayer() && !ped.IsAlive() && ped.IsCreatedBy(PED_GAME) && ped.bHasBeenAddedToPopulation) {
-            ++deadCount;
+    auto* pool = GetPedPool();
+    if (!pool) {
+        return 0;
+    }
+    const int32 size = pool->GetSize();
+    for (int32 i = 0; i < size; ++i) {
+        if (CPed* ped = pool->GetAt(i)) {
+            if (!ped->IsPlayer() && !ped->IsAlive() && ped->IsCreatedBy(PED_GAME) && ped->bHasBeenAddedToPopulation) {
+                ++deadCount;
+            }
         }
     }
     return deadCount;
