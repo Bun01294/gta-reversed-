@@ -25,13 +25,14 @@ uint32 D3DResourceSystem::GetTotalPixelsSize() {
 // 0x730830
 void D3DResourceSystem::Init() {
     plugin::Call<0x730830>();
+    SetUseD3DResourceBuffering(false);
 }
 
 // 0x730AC0
 void D3DResourceSystem::SetUseD3DResourceBuffering(bool bUse) {
     ZoneScoped;
 
-    plugin::Call<0x730AC0, bool>(bUse);
+    plugin::Call<0x730AC0, bool>(false);
 }
 
 // 0x730A00
@@ -41,12 +42,14 @@ void D3DResourceSystem::Shutdown() {
 
 // 0x730740
 void D3DResourceSystem::TidyUpD3DIndexBuffers(uint32 count) {
-    plugin::Call<0x730740, uint32>(count);
+    // No-op when D3D resource buffering is disabled / avoids broken mod jump at 0x73074C
+    UNUSED(count);
 }
 
 // 0x7305E0
 void D3DResourceSystem::TidyUpD3DTextures(uint32 count) {
-    plugin::Call<0x7305E0, uint32>(count);
+    // No-op when D3D resource buffering is disabled / avoids broken mod jump at 0x7305ED
+    UNUSED(count);
 }
 
 // 0x7306A0
