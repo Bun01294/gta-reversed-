@@ -726,9 +726,28 @@ void CCarCtrl::PossiblyFireHSMissile(CVehicle* entityLauncher, CEntity* targetEn
 
 // 0x424F80
 void CCarCtrl::PossiblyRemoveVehicle(CVehicle* vehicle) {
-    // Keep active vehicles with a living driver on 100% vanilla despawn distances
+    if (!vehicle->CanBeDeleted()) {
+        return;
+    }
+    if (IsThisVehicleInteresting(vehicle)) {
+        return;
+    }
+    if (vehicle->vehicleFlags.bIsLocked) {
+        return;
+    }
+    if (CCranes::IsThisCarBeingTargettedByAnyCrane(vehicle)) {
+        return;
+    }
+
+    const float distToPlayer = DistanceBetweenPoints(FindPlayerCentreOfWorld(), vehicle->GetPosition());
+
+    // Keep active vehicles with a living driver on vanilla despawn distances
     if (vehicle->m_pDriver && vehicle->m_pDriver->IsAlive() && vehicle->GetStatus() != STATUS_WRECKED) {
-        plugin::Call<0x424F80, CVehicle*>(vehicle);
+        const float maxDist = TheCamera.m_fGenerationDistMultiplier * (vehicle->vehicleFlags.bNeverUseSmallerRemovalRange ? 170.0f : 75.0f);
+        if (distToPlayer > maxDist && !vehicle->GetIsOnScreen()) {
+            CWorld::Remove(vehicle);
+            delete vehicle;
+        }
         return;
     }
 
@@ -745,10 +764,10 @@ void CCarCtrl::PossiblyRemoveVehicle(CVehicle* vehicle) {
         UpdateCarCount(vehicle, false);
     }
 
-    // c) Only allow deletion if distance to the player exceeds 800.0f meters
-    const float distToPlayer = DistanceBetweenPoints(FindPlayerCentreOfWorld(), vehicle->GetPosition());
+    // c) Only delete the wrecked/abandoned vehicle if its distance to the player exceeds 800.0f meters
     if (distToPlayer > 800.0f) {
-        plugin::Call<0x424F80, CVehicle*>(vehicle);
+        CWorld::Remove(vehicle);
+        delete vehicle;
     }
 }
 
