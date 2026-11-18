@@ -89,7 +89,7 @@ void CCarCtrl::InjectHooks()
     RH_ScopedInstall(PickNextNodeRandomly, 0x42DE80, { .Reversed = false });
     RH_ScopedInstall(PickNextNodeToChaseCar, 0x426EF0, { .Reversed = false });
     RH_ScopedInstall(PickNextNodeToFollowPath, 0x427740, { .Reversed = false });
-    RH_ScopedInstall(PossiblyRemoveVehicle, 0x424F80, { .Reversed = false });
+    //RH_ScopedInstall(PossiblyRemoveVehicle, 0x424F80, { .Reversed = false });
     RH_ScopedInstall(ReconsiderRoute, 0x42FC40, { .Reversed = false });
     RH_ScopedInstall(RegisterVehicleOfInterest, 0x423DE0, { .Reversed = false });
     RH_ScopedInstall(ScanForPedDanger, 0x42CE40, { .Reversed = false });
