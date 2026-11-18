@@ -1618,11 +1618,10 @@ int32 CPopulation::GeneratePedsAtAttractors(
     int32   decisionMaker,
     int32   numPedsToCreate
 ) {
-    ZoneScoped;
-
-    if (!numPedsToCreate) {
-        return 0;
-    }
+    return ((int32(__cdecl*)(CVector, float, float, float, float, int32, int32))0x615970)(
+        pos, minRadius, maxRadius, minRadiusClose, maxRadiusClose, decisionMaker, numPedsToCreate
+    );
+}
 
     CEntity* entitiesInRng[512];
     int16    numEntitiesInRng{};
