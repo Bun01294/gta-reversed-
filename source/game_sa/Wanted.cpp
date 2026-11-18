@@ -597,7 +597,7 @@ void CWanted::Update() {
         if (copInPursuit && !copInPursuit->IsAlive()) {
             if (copInPursuit->bHasBeenAddedToPopulation) {
                 CPopulation::UpdatePedCount(copInPursuit, true);
-                CPopulation::UpdatePedCounts();
+                
             }
             RemovePursuitCop(copInPursuit);
         }
@@ -610,7 +610,7 @@ void CWanted::Update() {
             if (CPed* ped = pedPool->GetAt(i)) {
                 if (!ped->IsAlive() && ped->bHasBeenAddedToPopulation) {
                     CPopulation::UpdatePedCount(ped, true);
-                    CPopulation::UpdatePedCounts();
+                    
                 }
             }
         }
