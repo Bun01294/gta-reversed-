@@ -7,7 +7,7 @@
 #include "StdInc.h"
 
 #include "Wanted.h"
-
+#include "Explosion.h
 void CWanted::InjectHooks() {
     RH_ScopedClass(CWanted);
     RH_ScopedCategoryGlobal();
@@ -592,9 +592,33 @@ void CWanted::RemoveExcessPursuitCops() {
 
 // 0x562C90
 void CWanted::Update() {
+    // 1. Immediately free pursuit slots for any dead cops so new cops spawn at normal vanilla rates
     for (auto* copInPursuit : m_CopsInPursuit) {
         if (copInPursuit && !copInPursuit->IsAlive()) {
             RemovePursuitCop(copInPursuit);
+        }
+    }
+
+    // 2. Make Rhino tanks (including cheat-spawned Rhinos) vulnerable to Rocket rounds
+    if (auto* vehPool = GetVehiclePool()) {
+        for (auto& exp : CExplosion::aExplosions) {
+            if (!exp.m_nActiveCounter) {
+                continue;
+            }
+            if (exp.m_nType != EXPLOSION_ROCKET && exp.m_nType != EXPLOSION_WEAK_ROCKET) {
+                continue;
+            }
+            const int32 poolSize = vehPool->GetSize();
+            for (int32 i = 0; i < poolSize; ++i) {
+                if (CVehicle* veh = vehPool->GetAt(i)) {
+                    if (veh->m_nModelIndex == MODEL_RHINO && veh->GetStatus() != STATUS_WRECKED && veh->m_fHealth > 0.0f) {
+                        if (DistanceBetweenPoints(veh->GetPosition(), exp.m_vecPosition) <= 8.5f) {
+                            veh->physicalFlags.bExplosionProof = false;
+                            veh->BlowUpCar(exp.m_pCreator, false);
+                        }
+                    }
+                }
+            }
         }
     }
 
