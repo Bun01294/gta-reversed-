@@ -1630,100 +1630,6 @@ int32 CPopulation::GeneratePedsAtAttractors(
     );
 }
 
-    CEntity* entitiesInRng[512];
-    int16    numEntitiesInRng{};
-    CWorld::FindObjectsInRange(pos, maxRadius, false, &numEntitiesInRng, (int16)std::size(entitiesInRng), entitiesInRng, true, false, false, true, false);
-    if (!numEntitiesInRng) {
-        return 0;
-    }
-
-    const auto IsEffectInRadius = [&](CVector effectPos) {
-        const auto EffInRange = [
-            effDistSq = (effectPos - pos).SquaredMagnitude()
-        ](float min, float max) {
-            return effDistSq >= sq(min) && effDistSq <= sq(max);
-        };
-        return TheCamera.IsSphereVisible(effectPos, 2.f)
-            ? EffInRange(minRadius, maxRadius)
-            : EffInRange(minRadiusClose, maxRadiusClose);
-    };
-
-    int32 numPedsCreated{};
-    for (size_t i{}; i < 12; i++) {
-        for (int16 o{}; o < numEntitiesInRng; o++) {
-            const auto ent = entitiesInRng[o];
-            assert(ent);
-            if (!ent->GetRwObject()) {
-                continue;
-            }
-            if (!ent->IsInCurrentArea()) {
-                continue;
-            }
-            auto* const attractor = notsa::cast_if_present<C2dEffectPedAttractor>(ent->GetRandom2dEffect(EFFECT_ATTRACTOR, true));
-            if (!attractor || !IsCorrectTimeOfDayForEffect(*attractor)) {
-                continue;
-            }
-            if (attractor->m_nFlags & 1) {
-                if (!ent->GetIsTypeObject()) {
-                    continue;
-                }
-                if (!ent->AsObject()->objectFlags.bEnableDisabledAttractors) {
-                    continue;
-                }
-            }
-
-            const auto effectPosWS = ent->GetMatrix().TransformPoint(attractor->m_Pos); // ws = world space
-            if (!IsEffectInRadius(effectPosWS)) {
-                continue;
-            }
-
-            const auto usePoliceModel = bInPoliceStation
-                && CGeneral::RandomBool(70.f)
-                && PedMICanBeCreatedAtThisAttractor(CStreaming::GetDefaultCopModel(), attractor->m_szScriptName);
-
-            const auto model = usePoliceModel
-                ? CStreaming::GetDefaultCopModel()
-                : ChooseCivilianOccupation(
-                    false,
-                    false,
-                    ANIM_GROUP_NONE,
-                    MODEL_INVALID,
-                    ePedStats::NONE,
-                    true,
-                    true,
-                    true,
-                    attractor->m_szScriptName
-                );
-
-            if (usePoliceModel) {
-                decisionMaker = 1; // TODO: Shouldn't this be local to this iteration instead? Right now this will presist into all futher iterations...
-            }
-
-            switch (model) {
-            case MODEL_INVALID:
-            case MODEL_MALE01:
-                continue;
-            }
-
-            if (!AddPedAtAttractor(model, attractor, effectPosWS, ent, decisionMaker)) {
-                continue;
-            }
-
-            numPedsCreated++;
-
-            if (decisionMaker == -1) {
-                break;
-            }
-
-            if (numPedsCreated == numPedsToCreate) {
-                break;
-            }
-        }
-    }
-
-    return numPedsCreated;
-}
-
 // 0x615C90
 void CPopulation::GeneratePedsAtStartOfGame() {
     ZoneScoped;
@@ -1917,4 +1823,8 @@ void CPopulation::UpdatePedCounts() {
     ms_nTotalCivPeds = ms_nNumCivMale + ms_nNumCivFemale;
     ms_nTotalPeds = ms_nTotalCivPeds + ms_nTotalGangPeds + ms_nNumCop + ms_nNumEmergency;
 }
+
+
+
+
 
