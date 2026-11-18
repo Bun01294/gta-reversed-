@@ -7,7 +7,7 @@
 #include "StdInc.h"
 
 #include "Wanted.h"
-#include "Explosion.h
+#include "Explosion.h"
 void CWanted::InjectHooks() {
     RH_ScopedClass(CWanted);
     RH_ScopedCategoryGlobal();
