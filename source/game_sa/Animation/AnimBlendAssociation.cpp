@@ -334,3 +334,7 @@ void CAnimBlendAssociation::ReferenceAnimBlock() {
 std::span<CAnimBlendNode> CAnimBlendAssociation::GetNodes() {
     return std::span{ m_BlendNodes, m_NumBlendNodes };
 }
+// 0x4CEB60
+CAnimBlendNode* CAnimBlendAssociation::GetNode(int32 nodeIndex) {
+    return &m_BlendNodes[nodeIndex];
+}
