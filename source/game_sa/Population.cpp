@@ -269,8 +269,7 @@ float CPopulation::FindPedDensityMultiplierCullZone() {
 
 // 0x610F20
 void CPopulation::RemovePed(CPed* ped) {
-    CWorld::Remove(ped);
-    delete ped;
+    ((void(__cdecl*)(CPed*))0x610F20)(ped);
 }
 
 // 0x610F40
@@ -704,16 +703,23 @@ void CPopulation::ManagePed(CPed* ped, const CVector& playerPosn) {
         return;
     }
 
-    if (ped->bInVehicle) {
-        return;
-    }
-
-    if (ped->m_pAttachedTo && ped->m_pAttachedTo->GetIsTypeVehicle()) {
-        return;
-    }
-
     if (!ped->IsAlive()) {
         const auto delta = CTimer::GetTimeInMS() - ped->m_nDeathTimeMS;
+
+        // Dead peds/cops hold their spawn slot until the 30-second timer passes,
+        // then free the slot while the dead body remains on the ground for 1 hour within 800.0f meters
+        if (ped->bHasBeenAddedToPopulation && delta > 30'000) {
+            UpdatePedCount(ped, true);
+        }
+
+        if (ped->bInVehicle) {
+            return;
+        }
+
+        if (ped->m_pAttachedTo && ped->m_pAttachedTo->GetIsTypeVehicle()) {
+            return;
+        }
+
         if (delta > 3'600'000) {
             ped->bFadeOut = true;
         }
@@ -727,6 +733,14 @@ void CPopulation::ManagePed(CPed* ped, const CVector& playerPosn) {
         if (distToPlayer > 800.0f) {
             RemovePed(ped);
         }
+        return;
+    }
+
+    if (ped->bInVehicle) {
+        return;
+    }
+
+    if (ped->m_pAttachedTo && ped->m_pAttachedTo->GetIsTypeVehicle()) {
         return;
     }
 
