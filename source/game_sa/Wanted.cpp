@@ -614,8 +614,8 @@ void CWanted::Update() {
     }
 
     // 2. Make Rhino tanks (including cheat-spawned Rhinos) vulnerable to Rocket rounds
-    //    NOTE: Wait until exp.m_nActiveCounter >= 2 so CProjectileInfo::Update() finishes
-    //    cleaning up the rocket projectile & its travelling sound on frame 1!
+    //    Wait until exp.m_nActiveCounter >= 2 so CProjectileInfo::Update() finishes
+    //    stopping the rocket's travelling thruster sound on frame 1 before the tank blows up!
     if (auto* vehPool = GetVehiclePool()) {
         const int32 poolSize = vehPool->GetSize();
         for (auto& exp : CExplosion::aExplosions) {
@@ -641,39 +641,39 @@ void CWanted::Update() {
     // 3. Auto-clean stuck rocket projectiles whose destroy timer expired or whose object was destroyed
     for (size_t i = 0; i < std::size(gaProjectileInfo); ++i) {
         auto& proj = gaProjectileInfo[i];
-        if (!proj.m_bInUse) {
+        if (!proj.m_bDoesExist) {
             continue;
         }
         CObject* projObj = CProjectileInfo::ms_apProjectile[i];
-        if (!projObj || curTime > proj.m_nDestroyTime + 500) {
-            NOTSA_LOG_DEBUG("[RocketAudioDebug] Removing stuck projectile slot {} (type={}, obj={}, curTime={}, destroyTime={})",
-                i, (int)proj.m_nWeaponType, (void*)projObj, curTime, proj.m_nDestroyTime);
+        if (!projObj || curTime > static_cast<uint32>(proj.m_nDestroyTime) + 500u) {
+            NOTSA_LOG_DEBUG("[RocketAudioDebug] Removing stuck projectile slot {} (type={}, curTime={}, destroyTime={})",
+                i, (int)proj.m_nWeaponType, curTime, (uint32)proj.m_nDestroyTime);
             if (projObj) {
                 ((void(__cdecl*)(CProjectileInfo*, CObject*))0x7388F0)(&proj, projObj); // CProjectileInfo::RemoveProjectile
             } else {
-                proj.m_bInUse = false;
+                proj.m_bDoesExist = false;
             }
         }
     }
 
-    // 4. Press F6 at any time when you hear the stuck rocket sound to log & kill all active looping sounds in log.log!
-    if (GetAsyncKeyState(VK_F6) & 1) {
-        NOTSA_LOG_DEBUG("========== [F6 AUDIO & PROJECTILE DUMP START] ==========");
+    // 4. Press F9 (or END) at any time when you hear the stuck rocket sound to log all active looping sounds in log.log!
+    if ((GetAsyncKeyState(VK_F9) & 1) || (GetAsyncKeyState(VK_END) & 1)) {
+        NOTSA_LOG_DEBUG("========== [F9 AUDIO & PROJECTILE DUMP START] ==========");
         for (size_t i = 0; i < std::size(gaProjectileInfo); ++i) {
-            if (gaProjectileInfo[i].m_bInUse) {
-                NOTSA_LOG_DEBUG("Active Projectile[{}]: weapon={}, destroyTime={}, curTime={}, obj={}",
-                    i, (int)gaProjectileInfo[i].m_nWeaponType, gaProjectileInfo[i].m_nDestroyTime, curTime, (void*)CProjectileInfo::ms_apProjectile[i]);
+            if (gaProjectileInfo[i].m_bDoesExist) {
+                NOTSA_LOG_DEBUG("Active Projectile[{}]: weapon={}, destroyTime={}, curTime={}",
+                    i, (int)gaProjectileInfo[i].m_nWeaponType, (uint32)gaProjectileInfo[i].m_nDestroyTime, curTime);
             }
         }
-        for (size_t i = 0; i < std::size(AESoundManager.m_aSounds); ++i) {
-            auto& snd = AESoundManager.m_aSounds[i];
+        for (size_t i = 0; i < std::size(AESoundManager.m_aSoundsList); ++i) {
+            auto& snd = AESoundManager.m_aSoundsList[i];
             if (snd.IsUsed()) {
-                NOTSA_LOG_DEBUG("Active Sound[{}]: bankSlot={}, soundID={}, entity={}, pos=({:.1f}, {:.1f}, {:.1f}), vol={:.1f}",
-                    i, (int)snd.m_nBankSlotId, (int)snd.m_nSoundIdInSlot, (void*)snd.m_pPhysicalEntity,
+                NOTSA_LOG_DEBUG("Active Sound[{}]: bankSlot={}, soundID={}, pos=({:.1f}, {:.1f}, {:.1f}), vol={:.1f}",
+                    i, (int)snd.m_nBankSlotId, (int)snd.m_nSoundIdInSlot,
                     snd.m_vecCurrPosn.x, snd.m_vecCurrPosn.y, snd.m_vecCurrPosn.z, snd.m_fVolume);
             }
         }
-        NOTSA_LOG_DEBUG("========== [F6 AUDIO & PROJECTILE DUMP END] ==========");
+        NOTSA_LOG_DEBUG("========== [F9 AUDIO & PROJECTILE DUMP END] ==========");
     }
 
     if (m_WantedLevel < eWantedLevel::WANTED_LEVEL_5) {
