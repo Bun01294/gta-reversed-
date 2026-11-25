@@ -8,7 +8,7 @@
 void InjectHooksMain() {
     const auto now = std::chrono::high_resolution_clock::now();
 
-    // 1. Population: 1-hour dead bodies (including dead cops) within 800m + dead peds don't block new spawns
+    // 1. Population: 1-hour dead bodies (including dead cops) within 800m + 30s slot cooldown
     {
         RH_ScopedClass(CPopulation);
         RH_ScopedCategoryGlobal();
@@ -16,10 +16,11 @@ void InjectHooksMain() {
         RH_ScopedInstall(Update, 0x616650);
     }
 
-    // 2. Wanted: Free pursuit slots as soon as a cop dies + make Rhino tanks vulnerable to rocket rounds
+    // 2. Wanted: Enforce 30s cooldown on dead cop pursuit slots + make Rhino tanks vulnerable to rocket rounds
     {
         RH_ScopedClass(CWanted);
         RH_ScopedCategoryGlobal();
+        RH_ScopedInstall(ComputePursuitCopToDisplace, 0x562B00);
         RH_ScopedInstall(Update, 0x562C90);
     }
 
