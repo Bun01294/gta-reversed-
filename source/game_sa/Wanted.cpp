@@ -542,7 +542,11 @@ CCopPed* CWanted::ComputePursuitCopToDisplace(CCopPed* cop, CCopPed** copsArray)
         }
 
         if (!copInPursuit->IsAlive()) {
-            return copInPursuit;
+            // Only allow a dead cop's pursuit slot to be replaced after the 30-second cooldown timer passes
+            if (CTimer::GetTimeInMS() - copInPursuit->m_nDeathTimeMS > 30'000) {
+                return copInPursuit;
+            }
+            continue;
         }
 
         const auto distPursuitCop = DistanceBetweenPointsSquared(playerPos, copInPursuit->GetPosition());
@@ -592,59 +596,24 @@ void CWanted::RemoveExcessPursuitCops() {
 
 // 0x562C90
 void CWanted::Update() {
-    // 1. Immediately free pursuit slots for any dead cops
+    const uint32 curTime = CTimer::GetTimeInMS();
+
+    // 1. Free pursuit slots for dead cops strictly after the 30-second death cooldown timer passes
+    //    (meanwhile their dead bodies remain on the ground for 1 hour within 800.0f meters)
     for (auto* copInPursuit : m_CopsInPursuit) {
         if (copInPursuit && !copInPursuit->IsAlive()) {
-            if (copInPursuit->bHasBeenAddedToPopulation) {
-                CPopulation::UpdatePedCount(copInPursuit, true);
-                
-            }
-            RemovePursuitCop(copInPursuit);
-        }
-    }
-
-    // 2. Also ensure any dead cop in the ped pool (e.g. killed before joining pursuit or in a car) frees ms_nNumCop
-    if (auto* pedPool = GetPedPool()) {
-        const int32 pedPoolSize = pedPool->GetSize();
-        for (int32 i = 0; i < pedPoolSize; ++i) {
-            if (CPed* ped = pedPool->GetAt(i)) {
-                if (!ped->IsAlive() && ped->bHasBeenAddedToPopulation) {
-                    CPopulation::UpdatePedCount(ped, true);
-                    
+            if (curTime - copInPursuit->m_nDeathTimeMS > 30'000) {
+                if (copInPursuit->bHasBeenAddedToPopulation) {
+                    CPopulation::UpdatePedCount(copInPursuit, true);
                 }
+                RemovePursuitCop(copInPursuit);
             }
         }
     }
 
-    // 3. Free NumLawEnforcerCars for wrecked/dead-driver police cars + make Rhino tanks vulnerable to rocket rounds
+    // 2. Make Rhino tanks (including cheat-spawned Rhinos) vulnerable to Rocket rounds
     if (auto* vehPool = GetVehiclePool()) {
         const int32 poolSize = vehPool->GetSize();
-        for (int32 i = 0; i < poolSize; ++i) {
-            CVehicle* veh = vehPool->GetAt(i);
-            if (!veh) {
-                continue;
-            }
-
-            // If a law enforcement vehicle is wrecked, or has a dead driver, free its law enforcer slot
-            // so new LSPD cop cars & helicopters can spawn without waiting for the old car to despawn
-            if (veh->vehicleFlags.bIsLawEnforcer) {
-                const bool driverDead = veh->m_pDriver && !veh->m_pDriver->IsAlive();
-                const bool isWrecked  = veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f;
-                bool hasLivingCopNear = false;
-                if (!veh->m_pDriver && !isWrecked) {
-                    for (auto* cop : m_CopsInPursuit) {
-                        if (cop && cop->IsAlive() && DistanceBetweenPoints(cop->GetPosition(), veh->GetPosition()) < 30.0f) {
-                            hasLivingCopNear = true;
-                            break;
-                        }
-                    }
-                }
-                if (isWrecked || driverDead || (!veh->m_pDriver && !hasLivingCopNear)) {
-                    veh->ChangeLawEnforcerState(false);
-                }
-            }
-        }
-
         for (auto& exp : CExplosion::aExplosions) {
             if (!exp.m_nActiveCounter) {
                 continue;
@@ -722,10 +691,6 @@ void CWanted::Update() {
         bool listMessedUp = false;
 
         for (auto& copInPursuit : m_CopsInPursuit) {
-            if (copInPursuit != nullptr && !copInPursuit->IsAlive()) {
-                RemovePursuitCop(copInPursuit);
-            }
-
             if (copInPursuit != nullptr) {
                 ++cops;
 
