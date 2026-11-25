@@ -5,9 +5,11 @@
     Do not delete this comment block. Respect others' work!
 */
 #include "StdInc.h"
-
+#include "ProjectileInfo.h"
+#include "AESoundManager.h"
 #include "Wanted.h"
 #include "Explosion.h"
+
 void CWanted::InjectHooks() {
     RH_ScopedClass(CWanted);
     RH_ScopedCategoryGlobal();
@@ -612,10 +614,12 @@ void CWanted::Update() {
     }
 
     // 2. Make Rhino tanks (including cheat-spawned Rhinos) vulnerable to Rocket rounds
+    //    NOTE: Wait until exp.m_nActiveCounter >= 2 so CProjectileInfo::Update() finishes
+    //    cleaning up the rocket projectile & its travelling sound on frame 1!
     if (auto* vehPool = GetVehiclePool()) {
         const int32 poolSize = vehPool->GetSize();
         for (auto& exp : CExplosion::aExplosions) {
-            if (!exp.m_nActiveCounter) {
+            if (exp.m_nActiveCounter < 2) {
                 continue;
             }
             if (exp.m_nType != EXPLOSION_ROCKET && exp.m_nType != EXPLOSION_WEAK_ROCKET) {
@@ -632,6 +636,44 @@ void CWanted::Update() {
                 }
             }
         }
+    }
+
+    // 3. Auto-clean stuck rocket projectiles whose destroy timer expired or whose object was destroyed
+    for (size_t i = 0; i < std::size(gaProjectileInfo); ++i) {
+        auto& proj = gaProjectileInfo[i];
+        if (!proj.m_bInUse) {
+            continue;
+        }
+        CObject* projObj = CProjectileInfo::ms_apProjectile[i];
+        if (!projObj || curTime > proj.m_nDestroyTime + 500) {
+            NOTSA_LOG_DEBUG("[RocketAudioDebug] Removing stuck projectile slot {} (type={}, obj={}, curTime={}, destroyTime={})",
+                i, (int)proj.m_nWeaponType, (void*)projObj, curTime, proj.m_nDestroyTime);
+            if (projObj) {
+                ((void(__cdecl*)(CProjectileInfo*, CObject*))0x7388F0)(&proj, projObj); // CProjectileInfo::RemoveProjectile
+            } else {
+                proj.m_bInUse = false;
+            }
+        }
+    }
+
+    // 4. Press F6 at any time when you hear the stuck rocket sound to log & kill all active looping sounds in log.log!
+    if (GetAsyncKeyState(VK_F6) & 1) {
+        NOTSA_LOG_DEBUG("========== [F6 AUDIO & PROJECTILE DUMP START] ==========");
+        for (size_t i = 0; i < std::size(gaProjectileInfo); ++i) {
+            if (gaProjectileInfo[i].m_bInUse) {
+                NOTSA_LOG_DEBUG("Active Projectile[{}]: weapon={}, destroyTime={}, curTime={}, obj={}",
+                    i, (int)gaProjectileInfo[i].m_nWeaponType, gaProjectileInfo[i].m_nDestroyTime, curTime, (void*)CProjectileInfo::ms_apProjectile[i]);
+            }
+        }
+        for (size_t i = 0; i < std::size(AESoundManager.m_aSounds); ++i) {
+            auto& snd = AESoundManager.m_aSounds[i];
+            if (snd.IsUsed()) {
+                NOTSA_LOG_DEBUG("Active Sound[{}]: bankSlot={}, soundID={}, entity={}, pos=({:.1f}, {:.1f}, {:.1f}), vol={:.1f}",
+                    i, (int)snd.m_nBankSlotId, (int)snd.m_nSoundIdInSlot, (void*)snd.m_pPhysicalEntity,
+                    snd.m_vecCurrPosn.x, snd.m_vecCurrPosn.y, snd.m_vecCurrPosn.z, snd.m_fVolume);
+            }
+        }
+        NOTSA_LOG_DEBUG("========== [F6 AUDIO & PROJECTILE DUMP END] ==========");
     }
 
     if (m_WantedLevel < eWantedLevel::WANTED_LEVEL_5) {
