@@ -638,52 +638,22 @@ void CWanted::Update() {
         }
     }
 
-    // 3. Auto-clean stuck rocket projectiles whose destroy timer expired or whose object was destroyed
-    for (size_t i = 0; i < 32; ++i) {
-        auto* projBytes   = reinterpret_cast<uint8*>(0xC891A8 + i * 0x20);
-        auto& weaponType  = *reinterpret_cast<uint32*>(projBytes + 0x00);
-        auto& destroyTime = *reinterpret_cast<uint32*>(projBytes + 0x08);
-        auto& bInUse      = *reinterpret_cast<uint8*>(projBytes + 0x0C);
-        if (!bInUse) {
-            continue;
-        }
-        auto* projObj = reinterpret_cast<CObject**>(0xC89128)[i];
-        if (!projObj || curTime > destroyTime + 500u) {
-            NOTSA_LOG_DEBUG("[RocketAudioDebug] Removing stuck projectile slot {} (type={}, curTime={}, destroyTime={})",
-                i, weaponType, curTime, destroyTime);
-            if (projObj) {
-                ((void(__cdecl*)(void*, CObject*))0x7388F0)(projBytes, projObj); // CProjectileInfo::RemoveProjectile
-            } else {
-                bInUse = 0;
-            }
-        }
-    }
-
-    // 4. Press F9 (or END) at any time when you hear the stuck rocket sound to log & stop active sounds in log.log!
+    // 3. Press F9 (or END) at any time when you hear a stuck sound to log all active sounds in log.log!
     if ((GetAsyncKeyState(VK_F9) & 1) || (GetAsyncKeyState(VK_END) & 1)) {
-        NOTSA_LOG_DEBUG("========== [F9 AUDIO & PROJECTILE DUMP START] ==========");
-        for (size_t i = 0; i < 32; ++i) {
-            auto* projBytes   = reinterpret_cast<uint8*>(0xC891A8 + i * 0x20);
-            auto  weaponType  = *reinterpret_cast<uint32*>(projBytes + 0x00);
-            auto  destroyTime = *reinterpret_cast<uint32*>(projBytes + 0x08);
-            auto  bInUse      = *reinterpret_cast<uint8*>(projBytes + 0x0C);
-            if (bInUse) {
-                NOTSA_LOG_DEBUG("Active Projectile[{}]: weapon={}, destroyTime={}, curTime={}", i, weaponType, destroyTime, curTime);
-            }
-        }
+        NOTSA_LOG_DEBUG("========== [F9 AUDIO DUMP START] ==========");
         for (size_t i = 0; i < 300; ++i) {
-            auto* sndBytes   = reinterpret_cast<uint8*>(0xB62CBC + i * 0x74);
-            auto  bankSlot   = *reinterpret_cast<int16*>(sndBytes + 0x00);
-            auto  soundId    = *reinterpret_cast<int16*>(sndBytes + 0x02);
-            auto* audioEnt   = *reinterpret_cast<void**>(sndBytes + 0x04);
-            auto* physEnt    = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
-            auto  isUsed     = *reinterpret_cast<int16*>(sndBytes + 0x5A);
+            auto* sndBytes = reinterpret_cast<uint8*>(0xB62CBC + i * 0x74);
+            auto  bankSlot = *reinterpret_cast<int16*>(sndBytes + 0x00);
+            auto  soundId  = *reinterpret_cast<int16*>(sndBytes + 0x02);
+            auto* audioEnt = *reinterpret_cast<void**>(sndBytes + 0x04);
+            auto* physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
+            auto  isUsed   = *reinterpret_cast<int16*>(sndBytes + 0x5A);
             if (isUsed) {
                 NOTSA_LOG_DEBUG("Active Sound[{}]: bankSlot={}, soundID={}, audioEnt={}, physEnt={}",
                     i, (int)bankSlot, (int)soundId, audioEnt, (void*)physEnt);
             }
         }
-        NOTSA_LOG_DEBUG("========== [F9 AUDIO & PROJECTILE DUMP END] ==========");
+        NOTSA_LOG_DEBUG("========== [F9 AUDIO DUMP END] ==========");
     }
 
     if (m_WantedLevel < eWantedLevel::WANTED_LEVEL_5) {
