@@ -16,10 +16,11 @@ void InjectHooksMain() {
         RH_ScopedInstall(Update, 0x616650);
     }
 
-    // 2. Wanted: Enforce 30s cooldown on dead cop pursuit slots + make Rhino tanks vulnerable to rocket rounds
+    // 2. Wanted: 30s cooldown on dead cop pursuit slots + 10 heli cap per star level + mortal Rhino tanks
     {
         RH_ScopedClass(CWanted);
         RH_ScopedCategoryGlobal();
+        RH_ScopedInstall(NumOfHelisRequired, 0x561FA0);
         RH_ScopedInstall(ComputePursuitCopToDisplace, 0x562B00);
         RH_ScopedInstall(Update, 0x562C90);
     }
