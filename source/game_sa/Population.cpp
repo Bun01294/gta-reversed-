@@ -704,11 +704,12 @@ void CPopulation::ManagePed(CPed* ped, const CVector& playerPosn) {
     }
 
     if (!ped->IsAlive()) {
-        const auto delta = CTimer::GetTimeInMS() - ped->m_nDeathTimeMS;
+        const auto  delta        = CTimer::GetTimeInMS() - ped->m_nDeathTimeMS;
+        const float distToPlayer = (ped->GetPosition() - playerPosn).Magnitude2D();
 
-        // Dead peds/cops hold their spawn slot until the 30-second timer passes,
-        // then free the slot while the dead body remains on the ground for 1 hour within 800.0f meters
-        if (ped->bHasBeenAddedToPopulation && delta > 30'000) {
+        // Free the population spawn counter after 30s OR as soon as Carl moves beyond vanilla distance (>55m),
+        // while keeping the dead body itself untouched on the ground for 1 hour within 800m!
+        if (ped->bHasBeenAddedToPopulation && (delta > 30'000 || distToPlayer > 55.0f)) {
             UpdatePedCount(ped, true);
         }
 
@@ -729,7 +730,6 @@ void CPopulation::ManagePed(CPed* ped, const CVector& playerPosn) {
             return;
         }
 
-        const float distToPlayer = (ped->GetPosition() - playerPosn).Magnitude2D();
         if (distToPlayer > 800.0f) {
             RemovePed(ped);
         }
