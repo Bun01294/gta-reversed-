@@ -699,25 +699,21 @@ void CWanted::Update() {
         }
     }
 
-    // 4. Press F9 (or END) when you hear the stuck whoosh sound to dump the REAL CAESound structs AND stop the stuck sound!
-    if ((GetAsyncKeyState(VK_F9) & 1) || (GetAsyncKeyState(VK_END) & 1)) {
-        NOTSA_LOG_DEBUG("========== [F9 REAL CAESOUND DUMP & STOP START] ==========");
-        for (size_t i = 0; i < std::size(AESoundManager.m_VirtuallyPlayingSoundList); ++i) {
-            CAESound& snd      = AESoundManager.m_VirtuallyPlayingSoundList[i];
-            auto*     sndBytes = reinterpret_cast<uint8*>(&snd);
-            auto      bankSlot = *reinterpret_cast<int16*>(sndBytes + 0x00);
-            auto      soundId  = *reinterpret_cast<int16*>(sndBytes + 0x02);
-            auto*     audioEnt = *reinterpret_cast<void**>(sndBytes + 0x04);
-            auto*     physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
-            auto      eventId  = *reinterpret_cast<uint32*>(sndBytes + 0x0C);
-            auto      isUsed   = *reinterpret_cast<int16*>(sndBytes + 0x5A);
-            if (isUsed) {
-                NOTSA_LOG_DEBUG("Active Sound[{}]: bankSlot={}, soundID={}, event={}, audioEnt={}, physEnt={}",
-                    i, (int)bankSlot, (int)soundId, eventId, audioEnt, (void*)physEnt);
-                ((void(__thiscall*)(CAESound*))0x4EF850)(&snd); // CAESound::StopSoundAndForget
-            }
+    // 4. Automatically stop any orphaned rocket thruster whoosh sound (bankSlot == 19, soundID == 26)
+    //    the instant its rocket projectile entity (physEnt) explodes and becomes nullptr!
+    for (size_t i = 0; i < std::size(AESoundManager.m_VirtuallyPlayingSoundList); ++i) {
+        CAESound& snd      = AESoundManager.m_VirtuallyPlayingSoundList[i];
+        auto*     sndBytes = reinterpret_cast<uint8*>(&snd);
+        auto      isUsed   = *reinterpret_cast<int16*>(sndBytes + 0x5A);
+        if (!isUsed) {
+            continue;
         }
-        NOTSA_LOG_DEBUG("========== [F9 REAL CAESOUND DUMP & STOP END] ==========");
+        auto  bankSlot = *reinterpret_cast<int16*>(sndBytes + 0x00);
+        auto  soundId  = *reinterpret_cast<int16*>(sndBytes + 0x02);
+        auto* physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
+        if (bankSlot == 19 && soundId == 26 && physEnt == nullptr) {
+            ((void(__thiscall*)(CAESound*))0x4EF850)(&snd); // CAESound::StopSoundAndForget
+        }
     }
 
     if (m_WantedLevel < eWantedLevel::WANTED_LEVEL_5) {
