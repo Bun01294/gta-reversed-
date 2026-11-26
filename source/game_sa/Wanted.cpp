@@ -195,9 +195,21 @@ bool CWanted::AreArmyRequired() const {
     return m_WantedLevel == eWantedLevel::WANTED_LEVEL_6 || m_bArmyRequired;
 }
 
+
+
+static eWantedLevel s_LastHeliWantedLevel = eWantedLevel::WANTED_CLEAN;
+static int32        s_HelisSpawnedAtCurrStar = 0;
+static std::array<CVehicle*, 32> s_CountedHelis{};
+
 // 0x561FA0
 int32 CWanted::NumOfHelisRequired() const {
     if (PoliceBackOff()) {
+        return 0;
+    }
+
+    // Stop spawning new helis once 10 have spawned at the current star level
+    // (Resets automatically in CWanted::Update whenever m_WantedLevel increments or decrements)
+    if (s_HelisSpawnedAtCurrStar >= 10) {
         return 0;
     }
 
@@ -600,7 +612,14 @@ void CWanted::RemoveExcessPursuitCops() {
 void CWanted::Update() {
     const uint32 curTime = CTimer::GetTimeInMS();
 
-    // 1. Free pursuit slots for dead cops strictly after the 30-second death cooldown timer passes
+    // 1. Reset the 10-helicopter counter whenever the wanted star level increments or decrements
+    if (m_WantedLevel != s_LastHeliWantedLevel) {
+        s_LastHeliWantedLevel = m_WantedLevel;
+        s_HelisSpawnedAtCurrStar = 0;
+        s_CountedHelis.fill(nullptr);
+    }
+
+    // 2. Free pursuit slots for dead cops strictly after the 30-second death cooldown timer passes
     //    (meanwhile their dead bodies remain on the ground for 1 hour within 800.0f meters)
     for (auto* copInPursuit : m_CopsInPursuit) {
         if (copInPursuit && !copInPursuit->IsAlive()) {
@@ -613,47 +632,38 @@ void CWanted::Update() {
         }
     }
 
-    // 2. Make Rhino tanks (including cheat-spawned Rhinos) vulnerable to Rocket rounds
-    //    Wait until exp.m_nActiveCounter >= 2 so CProjectileInfo::Update() finishes
-    //    stopping the rocket's travelling thruster sound on frame 1 before the tank blows up!
+    // 3. Strip bExplosionProof from Rhino tanks every frame so native rocket impacts blow them up cleanly
+    //    (without calling BlowUpCar mid-aiming or interrupting rocket projectile sound cleanup!),
+    //    and track newly spawned police/news helicopters toward the 10-heli limit per star level.
     if (auto* vehPool = GetVehiclePool()) {
         const int32 poolSize = vehPool->GetSize();
-        for (auto& exp : CExplosion::aExplosions) {
-            if (exp.m_nActiveCounter < 2) {
+        for (int32 i = 0; i < poolSize; ++i) {
+            CVehicle* veh = vehPool->GetAt(i);
+            if (!veh) {
                 continue;
             }
-            if (exp.m_nType != EXPLOSION_ROCKET && exp.m_nType != EXPLOSION_WEAK_ROCKET) {
-                continue;
-            }
-            for (int32 i = 0; i < poolSize; ++i) {
-                if (CVehicle* veh = vehPool->GetAt(i)) {
-                    if (veh->m_nModelIndex == MODEL_RHINO && veh->GetStatus() != STATUS_WRECKED && veh->m_fHealth > 0.0f) {
-                        if (DistanceBetweenPoints(veh->GetPosition(), exp.m_vecPosition) <= 8.5f) {
-                            veh->physicalFlags.bExplosionProof = false;
-                            veh->BlowUpCar(exp.m_pCreator, false);
+
+            if (veh->m_nModelIndex == MODEL_RHINO) {
+                veh->physicalFlags.bExplosionProof = false;
+            } else if (veh->m_nModelIndex == MODEL_POLMAV || veh->m_nModelIndex == MODEL_VCNMAV) {
+                bool alreadyCounted = false;
+                for (auto* counted : s_CountedHelis) {
+                    if (counted == veh) {
+                        alreadyCounted = true;
+                        break;
+                    }
+                }
+                if (!alreadyCounted && veh->GetStatus() != STATUS_WRECKED && veh->m_fHealth > 0.0f) {
+                    for (auto& slot : s_CountedHelis) {
+                        if (!slot || !vehPool->IsObjectValid(slot)) {
+                            slot = veh;
+                            break;
                         }
                     }
+                    ++s_HelisSpawnedAtCurrStar;
                 }
             }
         }
-    }
-
-    // 3. Press F9 (or END) at any time when you hear a stuck sound to log all active sounds in log.log!
-    if ((GetAsyncKeyState(VK_F9) & 1) || (GetAsyncKeyState(VK_END) & 1)) {
-        NOTSA_LOG_DEBUG("========== [F9 AUDIO DUMP START] ==========");
-        for (size_t i = 0; i < 300; ++i) {
-            auto* sndBytes = reinterpret_cast<uint8*>(0xB62CBC + i * 0x74);
-            auto  bankSlot = *reinterpret_cast<int16*>(sndBytes + 0x00);
-            auto  soundId  = *reinterpret_cast<int16*>(sndBytes + 0x02);
-            auto* audioEnt = *reinterpret_cast<void**>(sndBytes + 0x04);
-            auto* physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
-            auto  isUsed   = *reinterpret_cast<int16*>(sndBytes + 0x5A);
-            if (isUsed) {
-                NOTSA_LOG_DEBUG("Active Sound[{}]: bankSlot={}, soundID={}, audioEnt={}, physEnt={}",
-                    i, (int)bankSlot, (int)soundId, audioEnt, (void*)physEnt);
-            }
-        }
-        NOTSA_LOG_DEBUG("========== [F9 AUDIO DUMP END] ==========");
     }
 
     if (m_WantedLevel < eWantedLevel::WANTED_LEVEL_5) {
