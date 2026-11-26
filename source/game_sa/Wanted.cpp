@@ -635,8 +635,7 @@ void CWanted::Update() {
 
     // 2. Immediately free m_CopsInPursuit slots for dead cops so living cops pulling up in police cars
     //    can ALWAYS exit their vehicles and fire at CJ immediately on foot!
-    //    (Note: We do NOT call CPopulation::UpdatePedCount here — ManagePed in Population.cpp
-    //    holds ms_nNumCop for 30 seconds so new foot cops still obey the 30-second spawn cooldown!)
+    //    (ManagePed in Population.cpp holds ms_nNumCop for 30s so new foot-cop spawns still obey the 30s cooldown.)
     for (auto* copInPursuit : m_CopsInPursuit) {
         if (copInPursuit && !copInPursuit->IsAlive()) {
             RemovePursuitCop(copInPursuit);
@@ -646,7 +645,6 @@ void CWanted::Update() {
     // 3. Process vehicles:
     //    - Keep Rhino tanks explosion-proof against grenades/cars/mines, and ONLY trigger native delayed detonation when hit by a Rocket!
     //    - Cancel sounds on wrecked Rhinos so turbine/engine sounds never leak!
-    //    - Force any nearby police vehicle with a living driver to immediately engage CJ when wanted (no aiming required)!
     //    - Free NumLawEnforcerCars on wrecked or distant abandoned police cars (>55m) so doubled police cars spawn reliably!
     if (auto* vehPool = GetVehiclePool()) {
         const int32 poolSize = vehPool->GetSize();
@@ -679,32 +677,11 @@ void CWanted::Update() {
                 }
             }
 
-            const bool  isWrecked = (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f);
-            const float distToCar = DistanceBetweenPoints(veh->GetPosition(), playerPos);
-
-            // If CJ has a wanted level and a law enforcement vehicle with a living cop driver is within 90m,
-            // make sure it immediately switches from passive cruise into active pursuit (so they engage & shoot right away!)
-            if (m_WantedLevel >= eWantedLevel::WANTED_LEVEL_1 && !PoliceBackOff() && !isWrecked && veh != FindPlayerVehicle()) {
-                if (veh->IsLawEnforcementVehicle() && veh->m_pDriver && veh->m_pDriver->IsAlive() && veh->m_pDriver->m_nPedType == PED_TYPE_COP) {
-                    if (distToCar < 90.0f) {
-                        if (!veh->vehicleFlags.bIsLawEnforcer) {
-                            veh->ChangeLawEnforcerState(true);
-                        }
-                        veh->vehicleFlags.bSirenOrAlarm = true;
-                        if (veh->m_autoPilot.m_nCarMission == MISSION_CRUISE || veh->m_autoPilot.m_nCarMission == MISSION_NONE) {
-                            // CCarAI::FindPoliceCarMissionForWantedLevel (0x41CA40)
-                            veh->m_autoPilot.SetCarMission(((eCarMission(__cdecl*)(CVehicle*))0x41CA40)(veh), 0);
-                        }
-                        if (m_NumCopsInPursuit < m_MaxCopsInPursuit && !IsInPursuit(veh->m_pDriver->AsCop())) {
-                            SetPursuitCop(veh->m_pDriver->AsCop());
-                        }
-                    }
-                }
-            }
-
             if (veh->vehicleFlags.bIsLawEnforcer) {
-                const bool driverDeadCooldown = (veh->m_pDriver && !veh->m_pDriver->IsAlive() && (curTime - veh->m_pDriver->m_nDeathTimeMS > 15'000));
-                const bool abandonedFarAway   = ((!veh->m_pDriver || !veh->m_pDriver->IsAlive()) && distToCar > 55.0f);
+                const bool  isWrecked          = (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f);
+                const float distToCar          = DistanceBetweenPoints(veh->GetPosition(), playerPos);
+                const bool  driverDeadCooldown = (veh->m_pDriver && !veh->m_pDriver->IsAlive() && (curTime - veh->m_pDriver->m_nDeathTimeMS > 15'000));
+                const bool  abandonedFarAway   = ((!veh->m_pDriver || !veh->m_pDriver->IsAlive()) && distToCar > 55.0f);
                 if (isWrecked || driverDeadCooldown || abandonedFarAway) {
                     veh->ChangeLawEnforcerState(false);
                 }
@@ -712,8 +689,9 @@ void CWanted::Update() {
         }
     }
 
-    // 4. Automatically stop any orphaned rocket thruster whoosh sounds (bankSlot == 5, soundID == 21, 22, 23)
-    //    the instant the rocket projectile entity (physEnt) explodes and becomes nullptr (or when no rockets are in flight)!
+    // 4. Automatically stop any orphaned rocket thruster whoosh sound (bankSlot == 19, soundID == 26)
+    //    when no rocket projectiles are in flight (!anyProjectileInAir) or when physEnt is nullptr!
+    //    (Leaves bankSlot == 5 untouched so Shotgun blast & pump audio plays 100% normally!)
     bool anyProjectileInAir = false;
     for (size_t p = 0; p < 32; ++p) {
         if (reinterpret_cast<CObject**>(0xC89128)[p] != nullptr) {
@@ -732,7 +710,7 @@ void CWanted::Update() {
         auto  bankSlot = *reinterpret_cast<int16*>(sndBytes + 0x00);
         auto  soundId  = *reinterpret_cast<int16*>(sndBytes + 0x02);
         auto* physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
-        if (bankSlot == 5 && (soundId == 21 || soundId == 22 || soundId == 23)) {
+        if (bankSlot == 19 && soundId == 26) {
             if (physEnt == nullptr || !anyProjectileInAir) {
                 ((void(__thiscall*)(CAESound*))0x4EF850)(&snd); // CAESound::StopSoundAndForget
             }
