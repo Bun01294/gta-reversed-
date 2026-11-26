@@ -702,13 +702,17 @@ void CWanted::Update() {
     if ((GetAsyncKeyState(VK_F9) & 1) || (GetAsyncKeyState(VK_END) & 1)) {
         NOTSA_LOG_DEBUG("========== [F9 REAL CAESOUND DUMP & STOP START] ==========");
         for (size_t i = 0; i < std::size(AESoundManager.m_VirtuallyPlayingSoundList); ++i) {
-            CAESound& snd = AESoundManager.m_VirtuallyPlayingSoundList[i];
-            if (snd.m_nIsUsed) {
-                int32 entModel = (snd.m_pPhysicalEntity) ? (int32)snd.m_pPhysicalEntity->m_nModelIndex : -1;
-                NOTSA_LOG_DEBUG("Active Sound[{}]: bankSlot={}, soundID={}, event={}, vol={:.1f}, speed={:.2f}, audioEnt={}, physEnt={} (model={})",
-                    i, (int)snd.m_nBankSlotId, (int)snd.m_nSoundIdInSlot, (int)snd.m_nEvent,
-                    snd.m_fVolume, snd.m_fSoundSpeed, (void*)snd.m_pBaseAudio, (void*)snd.m_pPhysicalEntity, entModel);
-                // Stop the sound so we can verify if F9 kills the stuck whoosh sound!
+            CAESound& snd      = AESoundManager.m_VirtuallyPlayingSoundList[i];
+            auto*     sndBytes = reinterpret_cast<uint8*>(&snd);
+            auto      bankSlot = *reinterpret_cast<int16*>(sndBytes + 0x00);
+            auto      soundId  = *reinterpret_cast<int16*>(sndBytes + 0x02);
+            auto*     audioEnt = *reinterpret_cast<void**>(sndBytes + 0x04);
+            auto*     physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
+            auto      eventId  = *reinterpret_cast<uint32*>(sndBytes + 0x0C);
+            auto      isUsed   = *reinterpret_cast<int16*>(sndBytes + 0x5A);
+            if (isUsed) {
+                NOTSA_LOG_DEBUG("Active Sound[{}]: bankSlot={}, soundID={}, event={}, audioEnt={}, physEnt={}",
+                    i, (int)bankSlot, (int)soundId, eventId, audioEnt, (void*)physEnt);
                 ((void(__thiscall*)(CAESound*))0x4EF850)(&snd); // CAESound::StopSoundAndForget
             }
         }
