@@ -102,37 +102,37 @@ void CWanted::UpdateWantedLevel() {
         m_WantedLevel         = eWantedLevel::WANTED_LEVEL_6;
         m_ChanceOnRoadBlock   = 30;
         m_MaxCopsInPursuit    = 10;
-        m_MaxCopCarsInPursuit = 3;
+        m_MaxCopCarsInPursuit = 6; // Doubled from 3
     } else if (m_ChaosLevel >= 2400) {
         CStats::IncrementStat(eStats::STAT_TOTAL_NUMBER_OF_WANTED_STARS_ATTAINED, (float)(+eWantedLevel::WANTED_LEVEL_5 - +oldWanted));
         m_WantedLevel         = eWantedLevel::WANTED_LEVEL_5;
         m_ChanceOnRoadBlock   = 24;
         m_MaxCopsInPursuit    = 8;
-        m_MaxCopCarsInPursuit = 3;
+        m_MaxCopCarsInPursuit = 6; // Doubled from 3
     } else if (m_ChaosLevel >= 1200) {
         CStats::IncrementStat(eStats::STAT_TOTAL_NUMBER_OF_WANTED_STARS_ATTAINED, (float)(+eWantedLevel::WANTED_LEVEL_4 - +oldWanted));
         m_WantedLevel         = eWantedLevel::WANTED_LEVEL_4;
         m_ChanceOnRoadBlock   = 18;
         m_MaxCopsInPursuit    = 6;
-        m_MaxCopCarsInPursuit = 2;
+        m_MaxCopCarsInPursuit = 4; // Doubled from 2
     } else if (m_ChaosLevel >= 550) {
         CStats::IncrementStat(eStats::STAT_TOTAL_NUMBER_OF_WANTED_STARS_ATTAINED, (float)(+eWantedLevel::WANTED_LEVEL_3 - +oldWanted));
         m_WantedLevel         = eWantedLevel::WANTED_LEVEL_3;
         m_ChanceOnRoadBlock   = 12;
         m_MaxCopsInPursuit    = 4;
-        m_MaxCopCarsInPursuit = 2;
+        m_MaxCopCarsInPursuit = 4; // Doubled from 2
     } else if (m_ChaosLevel >= 180) {
         CStats::IncrementStat(eStats::STAT_TOTAL_NUMBER_OF_WANTED_STARS_ATTAINED, (float)(+eWantedLevel::WANTED_LEVEL_2 - +oldWanted));
         m_WantedLevel         = eWantedLevel::WANTED_LEVEL_2;
         m_ChanceOnRoadBlock   = 0;
         m_MaxCopsInPursuit    = 3;
-        m_MaxCopCarsInPursuit = 2;
+        m_MaxCopCarsInPursuit = 4; // Doubled from 2
     } else if (m_ChaosLevel >= 50) {
         CStats::IncrementStat(eStats::STAT_TOTAL_NUMBER_OF_WANTED_STARS_ATTAINED, (float)(+eWantedLevel::WANTED_LEVEL_1 - +oldWanted));
         m_WantedLevel         = eWantedLevel::WANTED_LEVEL_1;
         m_ChanceOnRoadBlock   = 0;
         m_MaxCopsInPursuit    = 1;
-        m_MaxCopCarsInPursuit = 1;
+        m_MaxCopCarsInPursuit = 2; // Doubled from 1
     } else {
         if (m_WantedLevel == eWantedLevel::WANTED_LEVEL_1) {
             CStats::IncrementStat(STAT_TOTAL_NUMBER_OF_WANTED_STARS_EVADED);
@@ -556,8 +556,10 @@ CCopPed* CWanted::ComputePursuitCopToDisplace(CCopPed* cop, CCopPed** copsArray)
         }
 
         if (!copInPursuit->IsAlive()) {
-            // Only allow a dead cop's pursuit slot to be replaced after the 30-second cooldown timer passes
-            if (CTimer::GetTimeInMS() - copInPursuit->m_nDeathTimeMS > 30'000) {
+            const uint32 timeDead = CTimer::GetTimeInMS() - copInPursuit->m_nDeathTimeMS;
+            const float  distSq   = DistanceBetweenPointsSquared(playerPos, copInPursuit->GetPosition());
+            // Allow replacing a dead cop's slot after 30s OR if Carl moved beyond vanilla distance (>55m)
+            if (timeDead > 30'000 || distSq > sq(55.0f)) {
                 return copInPursuit;
             }
             continue;
@@ -573,6 +575,7 @@ CCopPed* CWanted::ComputePursuitCopToDisplace(CCopPed* cop, CCopPed** copsArray)
 
     return displacedCop;
 }
+
 
 // 0x562300
 void CWanted::RemovePursuitCop(CCopPed* cop, CCopPed** copsArray, uint8& copsCounter) {
@@ -610,7 +613,8 @@ void CWanted::RemoveExcessPursuitCops() {
 
 // 0x562C90
 void CWanted::Update() {
-    const uint32 curTime = CTimer::GetTimeInMS();
+    const uint32  curTime   = CTimer::GetTimeInMS();
+    const CVector playerPos = FindPlayerCoors();
 
     // 1. Reset the 10-helicopter counter whenever the wanted star level increments or decrements
     if (m_WantedLevel != s_LastHeliWantedLevel) {
@@ -619,11 +623,13 @@ void CWanted::Update() {
         s_CountedHelis.fill(nullptr);
     }
 
-    // 2. Free pursuit slots for dead cops strictly after the 30-second death cooldown timer passes
+    // 2. Free pursuit slots for dead cops after the 30-second cooldown OR when Carl moves >55m away
     //    (meanwhile their dead bodies remain on the ground for 1 hour within 800.0f meters)
     for (auto* copInPursuit : m_CopsInPursuit) {
         if (copInPursuit && !copInPursuit->IsAlive()) {
-            if (curTime - copInPursuit->m_nDeathTimeMS > 30'000) {
+            const uint32 timeDead = curTime - copInPursuit->m_nDeathTimeMS;
+            const float  dist     = DistanceBetweenPoints(copInPursuit->GetPosition(), playerPos);
+            if (timeDead > 30'000 || dist > 55.0f) {
                 if (copInPursuit->bHasBeenAddedToPopulation) {
                     CPopulation::UpdatePedCount(copInPursuit, true);
                 }
@@ -632,9 +638,11 @@ void CWanted::Update() {
         }
     }
 
-    // 3. Strip bExplosionProof from Rhino tanks every frame so native rocket impacts blow them up cleanly
-    //    (without calling BlowUpCar mid-aiming or interrupting rocket projectile sound cleanup!),
-    //    and track newly spawned police/news helicopters toward the 10-heli limit per star level.
+    // 3. Process vehicles:
+    //    - Keep Rhino tanks explosion-proof against grenades/cars/mines, and ONLY trigger native delayed detonation when hit by a Rocket!
+    //    - Terminate m_vehicleAudio on wrecked Rhinos/vehicles so the whooshing sound never leaks!
+    //    - Free NumLawEnforcerCars on wrecked or distant abandoned police cars (>55m) so doubled police cars spawn reliably!
+    //    - Track police/news helicopters toward the 10-heli limit per star level.
     if (auto* vehPool = GetVehiclePool()) {
         const int32 poolSize = vehPool->GetSize();
         for (int32 i = 0; i < poolSize; ++i) {
@@ -644,7 +652,31 @@ void CWanted::Update() {
             }
 
             if (veh->m_nModelIndex == MODEL_RHINO) {
-                veh->physicalFlags.bExplosionProof = false;
+                if (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f) {
+                    // Kill the Rhino's audio entity when wrecked so its turbine/whoosh sound never gets stuck looping!
+                    ((void(__thiscall*)(void*))0x4FB8C0)(&veh->m_vehicleAudio); // CAEVehicleAudioEntity::Terminate
+                } else {
+                    // Keep Rhino explosion-proof against grenades, car explosions, molotovs, etc.
+                    veh->physicalFlags.bExplosionProof = true;
+
+                    // Check if a Rocket (RPG or Homing RPG) just exploded on/near this Rhino
+                    for (auto& exp : CExplosion::aExplosions) {
+                        if (exp.m_nActiveCounter && (exp.m_nType == EXPLOSION_ROCKET || exp.m_nType == EXPLOSION_WEAK_ROCKET)) {
+                            if (DistanceBetweenPoints(veh->GetPosition(), exp.m_vecPosition) <= 8.5f) {
+                                // Use the game's native delayed bomb timer (processed safely inside CAutomobile::ProcessControl)
+                                // instead of calling BlowUpCar mid-aiming!
+                                if (!veh->m_wBombTimer) {
+                                    veh->m_wBombTimer = 50;
+                                    veh->m_pWhoDetonatedMe = exp.m_pCreator;
+                                    if (exp.m_pCreator) {
+                                        CEntity::SafeRegisterRef(veh->m_pWhoDetonatedMe);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
             } else if (veh->m_nModelIndex == MODEL_POLMAV || veh->m_nModelIndex == MODEL_VCNMAV) {
                 bool alreadyCounted = false;
                 for (auto* counted : s_CountedHelis) {
@@ -661,6 +693,18 @@ void CWanted::Update() {
                         }
                     }
                     ++s_HelisSpawnedAtCurrStar;
+                }
+            }
+
+            // Free law enforcer car slot if the cop car is wrecked, or if it's empty/dead-driver and Carl moved >55m away
+            // (or if the driver has been dead for >15 seconds), so doubled police cars spawn frequently!
+            if (veh->vehicleFlags.bIsLawEnforcer) {
+                const bool isWrecked = (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f);
+                const float distToCar = DistanceBetweenPoints(veh->GetPosition(), playerPos);
+                const bool driverDeadCooldown = (veh->m_pDriver && !veh->m_pDriver->IsAlive() && (curTime - veh->m_pDriver->m_nDeathTimeMS > 15'000));
+                const bool abandonedFarAway   = ((!veh->m_pDriver || !veh->m_pDriver->IsAlive()) && distToCar > 55.0f);
+                if (isWrecked || driverDeadCooldown || abandonedFarAway) {
+                    veh->ChangeLawEnforcerState(false);
                 }
             }
         }
