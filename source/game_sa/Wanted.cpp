@@ -689,31 +689,53 @@ void CWanted::Update() {
         }
     }
 
-    // 4. Automatically stop any orphaned rocket thruster whoosh sound (bankSlot == 19, soundID == 26)
-    //    when no rocket projectiles are in flight (!anyProjectileInAir) or when physEnt is nullptr!
-    //    (Leaves bankSlot == 5 untouched so Shotgun blast & pump audio plays 100% normally!)
-    bool anyProjectileInAir = false;
-    for (size_t p = 0; p < 32; ++p) {
-        if (reinterpret_cast<CObject**>(0xC89128)[p] != nullptr) {
-            anyProjectileInAir = true;
-            break;
+    // 4. Definitive Audio Diagnostic:
+    //    - Press F9 (or END): Logs ONLY the sounds currently physically playing through your speakers!
+    //    - Press F10 (or PAGE DOWN): Stops ONE currently playing sound at a time and logs which one it stopped!
+    //      The exact press of F10 where the whoosh stops reveals the exact bankSlot & soundID in log.log!
+    if ((GetAsyncKeyState(VK_F9) & 1) || (GetAsyncKeyState(VK_END) & 1)) {
+        NOTSA_LOG_DEBUG("========== [F9 PHYSICALLY PLAYING SOUNDS] ==========");
+        const auto physList = AESoundManager.GetPhysicallyPlayingSoundList();
+        for (size_t ch = 0; ch < physList.size(); ++ch) {
+            const int16 vIdx = physList[ch];
+            if (vIdx < 0 || vIdx >= MAX_NUM_SOUNDS) {
+                continue;
+            }
+            CAESound& snd      = AESoundManager.m_VirtuallyPlayingSoundList[vIdx];
+            auto*     sndBytes = reinterpret_cast<uint8*>(&snd);
+            auto      bankSlot = *reinterpret_cast<int16*>(sndBytes + 0x00);
+            auto      soundId  = *reinterpret_cast<int16*>(sndBytes + 0x02);
+            auto*     audioEnt = *reinterpret_cast<void**>(sndBytes + 0x04);
+            auto*     physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
+            auto      eventId  = *reinterpret_cast<uint32*>(sndBytes + 0x0C);
+            NOTSA_LOG_DEBUG("Channel[{}] -> Virtual[{}]: bankSlot={}, soundID={}, event={}, audioEnt={}, physEnt={}",
+                ch, (int)vIdx, (int)bankSlot, (int)soundId, eventId, audioEnt, (void*)physEnt);
         }
+        NOTSA_LOG_DEBUG("========== [F9 END] ==========");
     }
 
-    for (size_t i = 0; i < std::size(AESoundManager.m_VirtuallyPlayingSoundList); ++i) {
-        CAESound& snd      = AESoundManager.m_VirtuallyPlayingSoundList[i];
-        auto*     sndBytes = reinterpret_cast<uint8*>(&snd);
-        auto      isUsed   = *reinterpret_cast<int16*>(sndBytes + 0x5A);
-        if (!isUsed) {
-            continue;
-        }
-        auto  bankSlot = *reinterpret_cast<int16*>(sndBytes + 0x00);
-        auto  soundId  = *reinterpret_cast<int16*>(sndBytes + 0x02);
-        auto* physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
-        if (bankSlot == 19 && soundId == 26) {
-            if (physEnt == nullptr || !anyProjectileInAir) {
-                ((void(__thiscall*)(CAESound*))0x4EF850)(&snd); // CAESound::StopSoundAndForget
+    if ((GetAsyncKeyState(VK_F10) & 1) || (GetAsyncKeyState(VK_NEXT) & 1)) {
+        const auto physList = AESoundManager.GetPhysicallyPlayingSoundList();
+        for (size_t ch = 0; ch < physList.size(); ++ch) {
+            const int16 vIdx = physList[ch];
+            if (vIdx < 0 || vIdx >= MAX_NUM_SOUNDS) {
+                continue;
             }
+            CAESound& snd      = AESoundManager.m_VirtuallyPlayingSoundList[vIdx];
+            auto*     sndBytes = reinterpret_cast<uint8*>(&snd);
+            auto      bankSlot = *reinterpret_cast<int16*>(sndBytes + 0x00);
+            auto      soundId  = *reinterpret_cast<int16*>(sndBytes + 0x02);
+            auto*     audioEnt = *reinterpret_cast<void**>(sndBytes + 0x04);
+            auto*     physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
+            auto      eventId  = *reinterpret_cast<uint32*>(sndBytes + 0x0C);
+            // Skip ambient bankSlot 0 if possible so we hit the whoosh sound faster
+            if (bankSlot == 0) {
+                continue;
+            }
+            NOTSA_LOG_DEBUG("[F10 STOPPED] Channel[{}] -> Virtual[{}]: bankSlot={}, soundID={}, event={}, audioEnt={}, physEnt={}",
+                ch, (int)vIdx, (int)bankSlot, (int)soundId, eventId, audioEnt, (void*)physEnt);
+            ((void(__thiscall*)(CAESound*))0x4EF850)(&snd); // CAESound::StopSoundAndForget
+            break; // Stop ONLY ONE sound per F10 press!
         }
     }
 
