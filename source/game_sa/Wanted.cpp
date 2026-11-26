@@ -667,7 +667,7 @@ void CWanted::Update() {
                                 // instead of calling BlowUpCar mid-aiming!
                                 if (!veh->m_wBombTimer) {
                                     veh->m_wBombTimer = 50;
-                                    veh->m_pWhoDetonatedMe = exp.m_pCreator;
+                                    veh->m_pWhoDetonatedMe = exp.m_pCreator ? exp.m_pCreator->AsPed() : nullptr;
                                     if (exp.m_pCreator) {
                                         CEntity::SafeRegisterRef(veh->m_pWhoDetonatedMe);
                                     }
