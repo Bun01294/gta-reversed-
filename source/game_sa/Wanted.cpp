@@ -665,7 +665,8 @@ void CWanted::Update() {
 
             if (veh->m_nModelIndex == MODEL_RHINO) {
                 if (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f) {
-                    ((void(__thiscall*)(void*))0x4FB8C0)(&veh->m_vehicleAudio); // CAEVehicleAudioEntity::Terminate
+                    // Cancel any active sounds on the wrecked Rhino WITHOUT destroying m_vehicleAudio (prevents 0x4f6a1b crash!)
+                    ((void(__thiscall*)(void*, void*, uint8))0x4EFCD0)(&AESoundManager, &veh->m_vehicleAudio, 1);
                 } else {
                     veh->physicalFlags.bExplosionProof = true;
 
