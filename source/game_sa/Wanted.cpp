@@ -7,6 +7,7 @@
 #include "StdInc.h"
 #include "ProjectileInfo.h"
 #include "AESoundManager.h"
+#include "Heli.h"
 #include "Wanted.h"
 #include "Explosion.h"
 
@@ -197,19 +198,13 @@ bool CWanted::AreArmyRequired() const {
 
 
 
-static eWantedLevel s_LastHeliWantedLevel = eWantedLevel::WANTED_CLEAN;
-static int32        s_HelisSpawnedAtCurrStar = 0;
-static std::array<CVehicle*, 32> s_CountedHelis{};
+static eWantedLevel          s_LastHeliWantedLevel    = eWantedLevel::WANTED_CLEAN;
+static int32                 s_HelisSpawnedAtCurrStar = 0;
+static std::array<CHeli*, 2> s_PrevActiveHelis{ nullptr, nullptr };
 
 // 0x561FA0
 int32 CWanted::NumOfHelisRequired() const {
-    if (PoliceBackOff()) {
-        return 0;
-    }
-
-    // Stop spawning new helis once 10 have spawned at the current star level
-    // (Resets automatically in CWanted::Update whenever m_WantedLevel increments or decrements)
-    if (s_HelisSpawnedAtCurrStar >= 10) {
+    if (PoliceBackOff() || s_HelisSpawnedAtCurrStar >= 10) {
         return 0;
     }
 
@@ -616,11 +611,29 @@ void CWanted::Update() {
     const uint32  curTime   = CTimer::GetTimeInMS();
     const CVector playerPos = FindPlayerCoors();
 
-    // 1. Reset the 10-helicopter counter whenever the wanted star level increments or decrements
+    // 1. Track CHeli::pHelis[0..1] directly and enforce the 10-helicopter limit per star level.
+    //    Resets automatically whenever the wanted star level increments or decrements!
     if (m_WantedLevel != s_LastHeliWantedLevel) {
         s_LastHeliWantedLevel = m_WantedLevel;
         s_HelisSpawnedAtCurrStar = 0;
-        s_CountedHelis.fill(nullptr);
+        s_PrevActiveHelis = { nullptr, nullptr };
+        CHeli::bPoliceHelisAllowed = true;
+    }
+
+    for (size_t h = 0; h < 2; ++h) {
+        CHeli* currHeli = CHeli::pHelis[h];
+        if (currHeli && currHeli != s_PrevActiveHelis[h]) {
+            ++s_HelisSpawnedAtCurrStar;
+            NOTSA_LOG_DEBUG("[HeliCap] Helicopter #{} spawned at star level {} (slot {})",
+                s_HelisSpawnedAtCurrStar, (int)m_WantedLevel, h);
+        }
+        s_PrevActiveHelis[h] = currHeli;
+    }
+
+    if (s_HelisSpawnedAtCurrStar >= 10) {
+        // Block CHeli::UpdateHelis() (0x6C4560) from spawning any more helicopters at this star level
+        CHeli::bPoliceHelisAllowed = false;
+        CHeli::TestForNewRandomHelisTimer = curTime + 60'000;
     }
 
     // 2. Free pursuit slots for dead cops after the 30-second cooldown OR when Carl moves >55m away
@@ -640,9 +653,8 @@ void CWanted::Update() {
 
     // 3. Process vehicles:
     //    - Keep Rhino tanks explosion-proof against grenades/cars/mines, and ONLY trigger native delayed detonation when hit by a Rocket!
-    //    - Terminate m_vehicleAudio on wrecked Rhinos/vehicles so the whooshing sound never leaks!
+    //    - Terminate m_vehicleAudio on wrecked Rhinos so turbine/engine sounds never leak!
     //    - Free NumLawEnforcerCars on wrecked or distant abandoned police cars (>55m) so doubled police cars spawn reliably!
-    //    - Track police/news helicopters toward the 10-heli limit per star level.
     if (auto* vehPool = GetVehiclePool()) {
         const int32 poolSize = vehPool->GetSize();
         for (int32 i = 0; i < poolSize; ++i) {
@@ -653,22 +665,17 @@ void CWanted::Update() {
 
             if (veh->m_nModelIndex == MODEL_RHINO) {
                 if (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f) {
-                    // Kill the Rhino's audio entity when wrecked so its turbine/whoosh sound never gets stuck looping!
                     ((void(__thiscall*)(void*))0x4FB8C0)(&veh->m_vehicleAudio); // CAEVehicleAudioEntity::Terminate
                 } else {
-                    // Keep Rhino explosion-proof against grenades, car explosions, molotovs, etc.
                     veh->physicalFlags.bExplosionProof = true;
 
-                    // Check if a Rocket (RPG or Homing RPG) just exploded on/near this Rhino
                     for (auto& exp : CExplosion::aExplosions) {
                         if (exp.m_nActiveCounter && (exp.m_nType == EXPLOSION_ROCKET || exp.m_nType == EXPLOSION_WEAK_ROCKET)) {
                             if (DistanceBetweenPoints(veh->GetPosition(), exp.m_vecPosition) <= 8.5f) {
-                                // Use the game's native delayed bomb timer (processed safely inside CAutomobile::ProcessControl)
-                                // instead of calling BlowUpCar mid-aiming!
                                 if (!veh->m_wBombTimer) {
                                     veh->m_wBombTimer = 50;
-                                    veh->m_pWhoDetonatedMe = exp.m_pCreator ? exp.m_pCreator->AsPed() : nullptr;
-                                    if (exp.m_pCreator) {
+                                    veh->m_pWhoDetonatedMe = (exp.m_pCreator && exp.m_pCreator->GetIsTypePed()) ? exp.m_pCreator->AsPed() : nullptr;
+                                    if (veh->m_pWhoDetonatedMe) {
                                         CEntity::SafeRegisterRef(veh->m_pWhoDetonatedMe);
                                     }
                                 }
@@ -677,37 +684,35 @@ void CWanted::Update() {
                         }
                     }
                 }
-            } else if (veh->m_nModelIndex == MODEL_POLMAV || veh->m_nModelIndex == MODEL_VCNMAV) {
-                bool alreadyCounted = false;
-                for (auto* counted : s_CountedHelis) {
-                    if (counted == veh) {
-                        alreadyCounted = true;
-                        break;
-                    }
-                }
-                if (!alreadyCounted && veh->GetStatus() != STATUS_WRECKED && veh->m_fHealth > 0.0f) {
-                    for (auto& slot : s_CountedHelis) {
-                        if (!slot || !vehPool->IsObjectValid(slot)) {
-                            slot = veh;
-                            break;
-                        }
-                    }
-                    ++s_HelisSpawnedAtCurrStar;
-                }
             }
 
-            // Free law enforcer car slot if the cop car is wrecked, or if it's empty/dead-driver and Carl moved >55m away
-            // (or if the driver has been dead for >15 seconds), so doubled police cars spawn frequently!
             if (veh->vehicleFlags.bIsLawEnforcer) {
-                const bool isWrecked = (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f);
-                const float distToCar = DistanceBetweenPoints(veh->GetPosition(), playerPos);
-                const bool driverDeadCooldown = (veh->m_pDriver && !veh->m_pDriver->IsAlive() && (curTime - veh->m_pDriver->m_nDeathTimeMS > 15'000));
-                const bool abandonedFarAway   = ((!veh->m_pDriver || !veh->m_pDriver->IsAlive()) && distToCar > 55.0f);
+                const bool  isWrecked          = (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f);
+                const float distToCar          = DistanceBetweenPoints(veh->GetPosition(), playerPos);
+                const bool  driverDeadCooldown = (veh->m_pDriver && !veh->m_pDriver->IsAlive() && (curTime - veh->m_pDriver->m_nDeathTimeMS > 15'000));
+                const bool  abandonedFarAway   = ((!veh->m_pDriver || !veh->m_pDriver->IsAlive()) && distToCar > 55.0f);
                 if (isWrecked || driverDeadCooldown || abandonedFarAway) {
                     veh->ChangeLawEnforcerState(false);
                 }
             }
         }
+    }
+
+    // 4. Press F9 (or END) when you hear the stuck whoosh sound to dump the REAL CAESound structs AND stop the stuck sound!
+    if ((GetAsyncKeyState(VK_F9) & 1) || (GetAsyncKeyState(VK_END) & 1)) {
+        NOTSA_LOG_DEBUG("========== [F9 REAL CAESOUND DUMP & STOP START] ==========");
+        for (size_t i = 0; i < std::size(AESoundManager.m_VirtuallyPlayingSoundList); ++i) {
+            CAESound& snd = AESoundManager.m_VirtuallyPlayingSoundList[i];
+            if (snd.m_nIsUsed) {
+                int32 entModel = (snd.m_pPhysicalEntity) ? (int32)snd.m_pPhysicalEntity->m_nModelIndex : -1;
+                NOTSA_LOG_DEBUG("Active Sound[{}]: bankSlot={}, soundID={}, event={}, vol={:.1f}, speed={:.2f}, audioEnt={}, physEnt={} (model={})",
+                    i, (int)snd.m_nBankSlotId, (int)snd.m_nSoundIdInSlot, (int)snd.m_nEvent,
+                    snd.m_fVolume, snd.m_fSoundSpeed, (void*)snd.m_pBaseAudio, (void*)snd.m_pPhysicalEntity, entModel);
+                // Stop the sound so we can verify if F9 kills the stuck whoosh sound!
+                ((void(__thiscall*)(CAESound*))0x4EF850)(&snd); // CAESound::StopSoundAndForget
+            }
+        }
+        NOTSA_LOG_DEBUG("========== [F9 REAL CAESOUND DUMP & STOP END] ==========");
     }
 
     if (m_WantedLevel < eWantedLevel::WANTED_LEVEL_5) {
