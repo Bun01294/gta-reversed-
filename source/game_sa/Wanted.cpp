@@ -10,6 +10,7 @@
 #include "Heli.h"
 #include "Wanted.h"
 #include "Explosion.h"
+#include "FireManager.h"
 
 void CWanted::InjectHooks() {
     RH_ScopedClass(CWanted);
@@ -550,14 +551,11 @@ CCopPed* CWanted::ComputePursuitCopToDisplace(CCopPed* cop, CCopPed** copsArray)
             continue;
         }
 
+        // Never let a dead cop in m_CopsInPursuit block a living cop (like cops pulling up in a police car!)
+        // from exiting their cruiser and shooting at CJ!
+        // (The 30-second spawn cooldown is enforced by CPopulation::ms_nNumCop in ManagePed.)
         if (!copInPursuit->IsAlive()) {
-            const uint32 timeDead = CTimer::GetTimeInMS() - copInPursuit->m_nDeathTimeMS;
-            const float  distSq   = DistanceBetweenPointsSquared(playerPos, copInPursuit->GetPosition());
-            // Allow replacing a dead cop's slot after 30s OR if Carl moved beyond vanilla distance (>55m)
-            if (timeDead > 30'000 || distSq > sq(55.0f)) {
-                return copInPursuit;
-            }
-            continue;
+            return copInPursuit;
         }
 
         const auto distPursuitCop = DistanceBetweenPointsSquared(playerPos, copInPursuit->GetPosition());
@@ -631,29 +629,24 @@ void CWanted::Update() {
     }
 
     if (s_HelisSpawnedAtCurrStar >= 10) {
-        // Block CHeli::UpdateHelis() (0x6C4560) from spawning any more helicopters at this star level
         CHeli::bPoliceHelisAllowed = false;
         CHeli::TestForNewRandomHelisTimer = curTime + 60'000;
     }
 
-    // 2. Free pursuit slots for dead cops after the 30-second cooldown OR when Carl moves >55m away
-    //    (meanwhile their dead bodies remain on the ground for 1 hour within 800.0f meters)
+    // 2. Immediately free m_CopsInPursuit slots for dead cops so living cops pulling up in police cars
+    //    can ALWAYS exit their vehicles and fire at CJ immediately on foot!
+    //    (Note: We do NOT call CPopulation::UpdatePedCount here — ManagePed in Population.cpp
+    //    holds ms_nNumCop for 30 seconds so new foot cops still obey the 30-second spawn cooldown!)
     for (auto* copInPursuit : m_CopsInPursuit) {
         if (copInPursuit && !copInPursuit->IsAlive()) {
-            const uint32 timeDead = curTime - copInPursuit->m_nDeathTimeMS;
-            const float  dist     = DistanceBetweenPoints(copInPursuit->GetPosition(), playerPos);
-            if (timeDead > 30'000 || dist > 55.0f) {
-                if (copInPursuit->bHasBeenAddedToPopulation) {
-                    CPopulation::UpdatePedCount(copInPursuit, true);
-                }
-                RemovePursuitCop(copInPursuit);
-            }
+            RemovePursuitCop(copInPursuit);
         }
     }
 
     // 3. Process vehicles:
     //    - Keep Rhino tanks explosion-proof against grenades/cars/mines, and ONLY trigger native delayed detonation when hit by a Rocket!
-    //    - Terminate m_vehicleAudio on wrecked Rhinos so turbine/engine sounds never leak!
+    //    - Cancel sounds on wrecked Rhinos so turbine/engine sounds never leak!
+    //    - Force any nearby police vehicle with a living driver to immediately engage CJ when wanted (no aiming required)!
     //    - Free NumLawEnforcerCars on wrecked or distant abandoned police cars (>55m) so doubled police cars spawn reliably!
     if (auto* vehPool = GetVehiclePool()) {
         const int32 poolSize = vehPool->GetSize();
@@ -665,7 +658,6 @@ void CWanted::Update() {
 
             if (veh->m_nModelIndex == MODEL_RHINO) {
                 if (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f) {
-                    // Cancel any active sounds on the wrecked Rhino WITHOUT destroying m_vehicleAudio (prevents 0x4f6a1b crash!)
                     ((void(__thiscall*)(void*, void*, uint8))0x4EFCD0)(&AESoundManager, &veh->m_vehicleAudio, 1);
                 } else {
                     veh->physicalFlags.bExplosionProof = true;
@@ -687,11 +679,32 @@ void CWanted::Update() {
                 }
             }
 
+            const bool  isWrecked = (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f);
+            const float distToCar = DistanceBetweenPoints(veh->GetPosition(), playerPos);
+
+            // If CJ has a wanted level and a law enforcement vehicle with a living cop driver is within 90m,
+            // make sure it immediately switches from passive cruise into active pursuit (so they engage & shoot right away!)
+            if (m_WantedLevel >= eWantedLevel::WANTED_LEVEL_1 && !PoliceBackOff() && !isWrecked && veh != FindPlayerVehicle()) {
+                if (veh->IsLawEnforcementVehicle() && veh->m_pDriver && veh->m_pDriver->IsAlive() && veh->m_pDriver->m_nPedType == PED_TYPE_COP) {
+                    if (distToCar < 90.0f) {
+                        if (!veh->vehicleFlags.bIsLawEnforcer) {
+                            veh->ChangeLawEnforcerState(true);
+                        }
+                        veh->vehicleFlags.bSirenOrAlarm = true;
+                        if (veh->m_autoPilot.m_nCarMission == MISSION_CRUISE || veh->m_autoPilot.m_nCarMission == MISSION_NONE) {
+                            // CCarAI::FindPoliceCarMissionForWantedLevel (0x41CA40)
+                            veh->m_autoPilot.SetCarMission(((eCarMission(__cdecl*)(CVehicle*))0x41CA40)(veh), 0);
+                        }
+                        if (m_NumCopsInPursuit < m_MaxCopsInPursuit && !IsInPursuit(veh->m_pDriver->AsCop())) {
+                            SetPursuitCop(veh->m_pDriver->AsCop());
+                        }
+                    }
+                }
+            }
+
             if (veh->vehicleFlags.bIsLawEnforcer) {
-                const bool  isWrecked          = (veh->GetStatus() == STATUS_WRECKED || veh->m_fHealth <= 0.0f);
-                const float distToCar          = DistanceBetweenPoints(veh->GetPosition(), playerPos);
-                const bool  driverDeadCooldown = (veh->m_pDriver && !veh->m_pDriver->IsAlive() && (curTime - veh->m_pDriver->m_nDeathTimeMS > 15'000));
-                const bool  abandonedFarAway   = ((!veh->m_pDriver || !veh->m_pDriver->IsAlive()) && distToCar > 55.0f);
+                const bool driverDeadCooldown = (veh->m_pDriver && !veh->m_pDriver->IsAlive() && (curTime - veh->m_pDriver->m_nDeathTimeMS > 15'000));
+                const bool abandonedFarAway   = ((!veh->m_pDriver || !veh->m_pDriver->IsAlive()) && distToCar > 55.0f);
                 if (isWrecked || driverDeadCooldown || abandonedFarAway) {
                     veh->ChangeLawEnforcerState(false);
                 }
@@ -713,6 +726,36 @@ void CWanted::Update() {
         auto* physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
         if (bankSlot == 19 && soundId == 26 && physEnt == nullptr) {
             ((void(__thiscall*)(CAESound*))0x4EF850)(&snd); // CAESound::StopSoundAndForget
+        }
+    }
+
+    // 5. Make NPCs and law enforcement catch fire when walking onto leftover Molotov ground flames
+    //    or standing next to a burning vehicle fire!
+    if (auto* pedPool = GetPedPool()) {
+        const int32 pedPoolSize = pedPool->GetSize();
+        for (auto& fire : gFireManager.m_aFires) {
+            if (!fire.IsActive()) {
+                continue;
+            }
+            CEntity* entityOnFire = fire.GetEntityOnFire();
+            if (entityOnFire && !entityOnFire->GetIsTypeVehicle()) {
+                continue;
+            }
+            const CVector& firePos = entityOnFire ? entityOnFire->GetPosition() : fire.GetPosition();
+            const float catchRadius = entityOnFire ? 2.2f : 1.35f;
+
+            for (int32 i = 0; i < pedPoolSize; ++i) {
+                CPed* ped = pedPool->GetAt(i);
+                if (!ped || ped->IsPlayer() || !ped->IsAlive() || ped->bInVehicle || ped->m_pFire || ped->physicalFlags.bFireProof) {
+                    continue;
+                }
+                const CVector& pedPos = ped->GetPosition();
+                if (std::fabs(pedPos.z - firePos.z) <= 2.0f && DistanceBetweenPoints2D(pedPos, firePos) <= catchRadius) {
+                    ((void*(__thiscall*)(CFireManager*, CEntity*, CEntity*, float, uint8, uint32, int8))0x53A050)(
+                        &gFireManager, ped, fire.GetEntityStartedFire(), 0.8f, 1, 7000, 2
+                    );
+                }
+            }
         }
     }
 
