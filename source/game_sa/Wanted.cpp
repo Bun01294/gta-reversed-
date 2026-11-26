@@ -712,8 +712,16 @@ void CWanted::Update() {
         }
     }
 
-    // 4. Automatically stop any orphaned rocket thruster whoosh sound (bankSlot == 19, soundID == 26)
-    //    the instant its rocket projectile entity (physEnt) explodes and becomes nullptr!
+    // 4. Automatically stop any orphaned rocket thruster whoosh sounds (bankSlot == 5, soundID == 21, 22, 23)
+    //    the instant the rocket projectile entity (physEnt) explodes and becomes nullptr (or when no rockets are in flight)!
+    bool anyProjectileInAir = false;
+    for (size_t p = 0; p < 32; ++p) {
+        if (reinterpret_cast<CObject**>(0xC89128)[p] != nullptr) {
+            anyProjectileInAir = true;
+            break;
+        }
+    }
+
     for (size_t i = 0; i < std::size(AESoundManager.m_VirtuallyPlayingSoundList); ++i) {
         CAESound& snd      = AESoundManager.m_VirtuallyPlayingSoundList[i];
         auto*     sndBytes = reinterpret_cast<uint8*>(&snd);
@@ -724,8 +732,10 @@ void CWanted::Update() {
         auto  bankSlot = *reinterpret_cast<int16*>(sndBytes + 0x00);
         auto  soundId  = *reinterpret_cast<int16*>(sndBytes + 0x02);
         auto* physEnt  = *reinterpret_cast<CEntity**>(sndBytes + 0x08);
-        if (bankSlot == 19 && soundId == 26 && physEnt == nullptr) {
-            ((void(__thiscall*)(CAESound*))0x4EF850)(&snd); // CAESound::StopSoundAndForget
+        if (bankSlot == 5 && (soundId == 21 || soundId == 22 || soundId == 23)) {
+            if (physEnt == nullptr || !anyProjectileInAir) {
+                ((void(__thiscall*)(CAESound*))0x4EF850)(&snd); // CAESound::StopSoundAndForget
+            }
         }
     }
 
